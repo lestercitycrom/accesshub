@@ -245,6 +245,34 @@
 			cursor: not-allowed;
 		}
 
+		#historyList {
+			min-height: 100px;
+		}
+
+		#historyLoader {
+			text-align: center;
+			padding: 16px;
+			color: var(--ah-hint);
+			font-size: 13px;
+		}
+
+		#historyLoadMoreBtn {
+			width: 100%;
+			margin-top: 12px;
+		}
+
+		#historyEnd {
+			text-align: center;
+			padding: 16px;
+			color: var(--ah-hint);
+			font-size: 12px;
+		}
+
+		#historySentinel {
+			height: 1px;
+			margin: 10px 0;
+		}
+
 		.sticky-actions {
 			position: sticky;
 			bottom: 10px;
@@ -491,22 +519,19 @@
 			return data;
 		}
 
-		function enableHorizontalWheelScroll(container) {
-			if (!container) {
-				return;
-			}
+		function enableTabsWheelScroll() {
+			const rail = document.querySelector('.tabs-rail');
+			const wrap = document.querySelector('.tabs-wrap');
+			if (!rail || !wrap) return;
 
-			container.addEventListener('wheel', (e) => {
-				const hasHorizontal = container.scrollWidth > container.clientWidth;
-				if (!hasHorizontal) {
-					return;
-				}
+			rail.addEventListener('wheel', (e) => {
+				const canScrollX = wrap.scrollWidth > wrap.clientWidth;
+				if (!canScrollX) return;
 
-				// Convert vertical wheel to horizontal scroll
-				if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-					e.preventDefault();
-					container.scrollLeft += e.deltaY;
-				}
+				if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+				e.preventDefault();
+				wrap.scrollLeft += e.deltaY;
 			}, { passive: false });
 		}
 
@@ -732,13 +757,63 @@
 
 					if (tab.submit?.type === 'api') {
 						const endpoint = tab.submit.endpoint;
-						const query = buildQuery(payload);
-						const url = query ? (endpoint + '?' + query) : endpoint;
+						
+						// Check if this is history tab
+						const isHistoryTab = tab.id === 'history';
+						
+						if (isHistoryTab) {
+							// History: setup infinite scroll with new filters
+							resultBox.innerHTML = '';
+							
+							historyReset();
+							historyState.endpoint = endpoint;
+							historyState.baseParams = payload;
+							
+							// Create history structure
+							const listContainer = document.createElement('div');
+							listContainer.id = 'historyList';
+							resultBox.appendChild(listContainer);
 
-						const resp = await apiGet(url);
+							const loader = document.createElement('div');
+							loader.id = 'historyLoader';
+							loader.style.display = 'none';
+							loader.textContent = 'Загрузка...';
+							resultBox.appendChild(loader);
 
-						resultBox.innerHTML = '';
-						renderApiResult(resp, resultBox, endpoint, payload);
+							const loadMoreBtn = document.createElement('button');
+							loadMoreBtn.id = 'historyLoadMoreBtn';
+							loadMoreBtn.className = 'btn btn-outline-primary history-pagination-btn';
+							loadMoreBtn.style.display = 'none';
+							loadMoreBtn.textContent = 'Загрузить ещё';
+							resultBox.appendChild(loadMoreBtn);
+
+							const end = document.createElement('div');
+							end.id = 'historyEnd';
+							end.style.display = 'none';
+							end.textContent = 'Конец списка';
+							resultBox.appendChild(end);
+
+							const sentinel = document.createElement('div');
+							sentinel.id = 'historySentinel';
+							resultBox.appendChild(sentinel);
+
+							historyState.listContainer = listContainer;
+							historyState.sentinel = sentinel;
+
+							// Load first page
+							historyFetchNext().then(() => {
+								historyAttachObserver();
+							});
+						} else {
+							// Other API calls: regular rendering
+							const query = buildQuery(payload);
+							const url = query ? (endpoint + '?' + query) : endpoint;
+
+							const resp = await apiGet(url);
+
+							resultBox.innerHTML = '';
+							renderApiResult(resp, resultBox, endpoint, payload);
+						}
 						return;
 					}
 
@@ -757,6 +832,147 @@
 			root.appendChild(form);
 		}
 
+		// History infinite scroll state
+		const historyState = {
+			page: 1,
+			perPage: 20,
+			total: 0,
+			loading: false,
+			done: false,
+			seenIds: new Set(),
+			endpoint: null,
+			baseParams: null,
+			listContainer: null,
+			sentinel: null,
+			observer: null,
+		};
+
+		function historyReset() {
+			historyState.page = 1;
+			historyState.total = 0;
+			historyState.loading = false;
+			historyState.done = false;
+			historyState.seenIds.clear();
+			if (historyState.observer && historyState.sentinel) {
+				historyState.observer.unobserve(historyState.sentinel);
+			}
+		}
+
+		function historyCreateCard(row) {
+			const card = document.createElement('div');
+			card.className = 'history-card';
+
+			const line1 = document.createElement('div');
+			line1.className = 'history-card-line';
+			const orderText = 'Order: ' + (row.order_id || '-');
+			const dateText = row.issued_at ? new Date(row.issued_at).toLocaleString('ru-RU') : '';
+			line1.innerHTML = '<strong>' + escapeHtml(orderText) + '</strong>' + (dateText ? ' <span style="color: var(--ah-hint); font-size: 11px;">' + escapeHtml(dateText) + '</span>' : '');
+			card.appendChild(line1);
+
+			const line2 = document.createElement('div');
+			line2.className = 'history-card-line';
+			line2.textContent = (row.game || '-') + ' (' + (row.platform || '-') + ')';
+			card.appendChild(line2);
+
+			const line3 = document.createElement('div');
+			line3.className = 'history-card-line';
+			line3.textContent = 'Account ID: ' + (row.account_id || '-');
+			card.appendChild(line3);
+
+			return card;
+		}
+
+		async function historyFetchNext() {
+			if (historyState.loading || historyState.done || !historyState.endpoint || !historyState.listContainer) {
+				return;
+			}
+
+			historyState.loading = true;
+
+			// Show loader
+			const loader = document.getElementById('historyLoader');
+			if (loader) loader.style.display = 'block';
+
+			try {
+				const params = {
+					...(historyState.baseParams || {}),
+					page: historyState.page,
+					per_page: historyState.perPage,
+				};
+				const query = buildQuery(params);
+				const url = query ? (historyState.endpoint + '?' + query) : historyState.endpoint;
+
+				const resp = await apiGet(url);
+				const data = resp.data || {};
+				const items = Array.isArray(data.items) ? data.items : [];
+
+				if (items.length === 0) {
+					historyState.done = true;
+					const end = document.getElementById('historyEnd');
+					if (end) end.style.display = 'block';
+				} else {
+					historyState.total = data.total || 0;
+
+					for (const row of items) {
+						// Create unique ID for deduplication
+						const uniqueId = row.id || `${row.order_id}_${row.account_id}_${row.issued_at || ''}`;
+						if (historyState.seenIds.has(uniqueId)) {
+							continue;
+						}
+						historyState.seenIds.add(uniqueId);
+
+						const card = historyCreateCard(row);
+						historyState.listContainer.appendChild(card);
+					}
+
+					historyState.page++;
+					const loadedCount = historyState.seenIds.size;
+					if (loadedCount >= historyState.total) {
+						historyState.done = true;
+						const end = document.getElementById('historyEnd');
+						if (end) end.style.display = 'block';
+					}
+				}
+			} catch (err) {
+				// Show fallback button
+				const loadMoreBtn = document.getElementById('historyLoadMoreBtn');
+				if (loadMoreBtn) {
+					loadMoreBtn.style.display = 'block';
+					loadMoreBtn.onclick = () => {
+						loadMoreBtn.style.display = 'none';
+						historyFetchNext();
+					};
+				}
+				showAlert('danger', err.message || 'Ошибка загрузки');
+			} finally {
+				historyState.loading = false;
+				if (loader) loader.style.display = 'none';
+			}
+		}
+
+		function historyAttachObserver() {
+			if (!historyState.sentinel || !window.IntersectionObserver) {
+				const loadMoreBtn = document.getElementById('historyLoadMoreBtn');
+				if (loadMoreBtn) {
+					loadMoreBtn.style.display = 'block';
+					loadMoreBtn.onclick = () => {
+						historyFetchNext();
+					};
+				}
+				return;
+			}
+
+			historyState.observer = new IntersectionObserver((entries) => {
+				if (entries[0].isIntersecting && !historyState.loading && !historyState.done) {
+					historyFetchNext();
+				}
+			}, {
+				rootMargin: '100px',
+			});
+
+			historyState.observer.observe(historyState.sentinel);
+		}
+
 		function renderApiResult(resp, root, endpoint, baseParams) {
 			const data = resp.data || {};
 			if (Array.isArray(data.items)) {
@@ -765,90 +981,51 @@
 				const isHistory = first.hasOwnProperty('order_id') && first.hasOwnProperty('game') && first.hasOwnProperty('platform') && first.hasOwnProperty('account_id');
 
 				if (isHistory && endpoint) {
-					// Render as cards for history
-					for (const row of data.items) {
-						const card = document.createElement('div');
-						card.className = 'history-card';
+					// History: infinite scroll setup
+					historyReset();
 
-						const line1 = document.createElement('div');
-						line1.className = 'history-card-line';
-						const orderText = 'Order: ' + (row.order_id || '-');
-						const dateText = row.issued_at ? new Date(row.issued_at).toLocaleString('ru-RU') : '';
-						line1.innerHTML = '<strong>' + escapeHtml(orderText) + '</strong>' + (dateText ? ' <span style="color: var(--ah-hint); font-size: 11px;">' + escapeHtml(dateText) + '</span>' : '');
-						card.appendChild(line1);
+					// Clear root and create history structure
+					root.innerHTML = '';
 
-						const line2 = document.createElement('div');
-						line2.className = 'history-card-line';
-						line2.textContent = (row.game || '-') + ' (' + (row.platform || '-') + ')';
-						card.appendChild(line2);
+					const listContainer = document.createElement('div');
+					listContainer.id = 'historyList';
+					root.appendChild(listContainer);
 
-						const line3 = document.createElement('div');
-						line3.className = 'history-card-line';
-						line3.textContent = 'Account ID: ' + (row.account_id || '-');
-						card.appendChild(line3);
+					const loader = document.createElement('div');
+					loader.id = 'historyLoader';
+					loader.style.display = 'none';
+					loader.textContent = 'Загрузка...';
+					root.appendChild(loader);
 
-						root.appendChild(card);
-					}
+					const loadMoreBtn = document.createElement('button');
+					loadMoreBtn.id = 'historyLoadMoreBtn';
+					loadMoreBtn.className = 'btn btn-outline-primary history-pagination-btn';
+					loadMoreBtn.style.display = 'none';
+					loadMoreBtn.textContent = 'Загрузить ещё';
+					root.appendChild(loadMoreBtn);
 
-					// Pagination UI
-					const page = data.page || 1;
-					const perPage = data.per_page || 20;
-					const total = data.total || 0;
-					const totalPages = Math.ceil(total / perPage);
+					const end = document.createElement('div');
+					end.id = 'historyEnd';
+					end.style.display = 'none';
+					end.textContent = 'Конец списка';
+					root.appendChild(end);
 
-					const pagination = document.createElement('div');
-					pagination.className = 'history-pagination';
+					const sentinel = document.createElement('div');
+					sentinel.id = 'historySentinel';
+					root.appendChild(sentinel);
 
-					const info = document.createElement('div');
-					info.className = 'history-pagination-info';
-					info.textContent = `Стр. ${page} из ${totalPages}`;
-					pagination.appendChild(info);
+					// Setup state
+					historyState.endpoint = endpoint;
+					historyState.baseParams = baseParams;
+					historyState.listContainer = listContainer;
+					historyState.sentinel = sentinel;
+					historyState.total = data.total || 0;
+					historyState.perPage = data.per_page || 20;
 
-					const buttons = document.createElement('div');
-					buttons.className = 'history-pagination-buttons';
-
-					const prevBtn = document.createElement('button');
-					prevBtn.className = 'history-pagination-btn';
-					prevBtn.textContent = '←';
-					prevBtn.disabled = page <= 1;
-					prevBtn.addEventListener('click', async () => {
-						if (page > 1) {
-							const params = { ...(baseParams || {}), page: page - 1, per_page: perPage };
-							const query = buildQuery(params);
-							const url = query ? (endpoint + '?' + query) : endpoint;
-							try {
-								const resp = await apiGet(url);
-								root.innerHTML = '';
-								renderApiResult(resp, root, endpoint, params);
-							} catch (err) {
-								showAlert('danger', err.message || 'Error');
-							}
-						}
+					// Load first page immediately
+					historyFetchNext().then(() => {
+						historyAttachObserver();
 					});
-					buttons.appendChild(prevBtn);
-
-					const nextBtn = document.createElement('button');
-					nextBtn.className = 'history-pagination-btn';
-					nextBtn.textContent = '→';
-					nextBtn.disabled = page >= totalPages;
-					nextBtn.addEventListener('click', async () => {
-						if (page < totalPages) {
-							const params = { ...(baseParams || {}), page: page + 1, per_page: perPage };
-							const query = buildQuery(params);
-							const url = query ? (endpoint + '?' + query) : endpoint;
-							try {
-								const resp = await apiGet(url);
-								root.innerHTML = '';
-								renderApiResult(resp, root, endpoint, params);
-							} catch (err) {
-								showAlert('danger', err.message || 'Error');
-							}
-						}
-					});
-					buttons.appendChild(nextBtn);
-
-					pagination.appendChild(buttons);
-					root.appendChild(pagination);
 
 					return;
 				}
@@ -957,12 +1134,27 @@
 					}
 				}
 
-				// Meta info
-				if (data.page !== undefined || data.total !== undefined) {
-					const meta = document.createElement('div');
-					meta.className = 'history-meta';
-					meta.textContent = `page=${data.page ?? '-'} per_page=${data.per_page ?? '-'} total=${data.total ?? '-'}`;
-					root.appendChild(meta);
+				// Show "Всего" or "Конец списка" if all data loaded
+				if (data.total !== undefined && data.total > 0) {
+					const page = data.page || 1;
+					const perPage = data.per_page || 20;
+					const totalPages = Math.ceil(data.total / perPage);
+					
+					if (page >= totalPages) {
+						const end = document.createElement('div');
+						end.className = 'history-meta';
+						end.style.textAlign = 'center';
+						end.style.paddingTop = '12px';
+						end.textContent = `Всего: ${data.total}`;
+						root.appendChild(end);
+					}
+				} else if (data.items && data.items.length === 0) {
+					const empty = document.createElement('div');
+					empty.className = 'history-meta';
+					empty.style.textAlign = 'center';
+					empty.style.paddingTop = '12px';
+					empty.textContent = 'Нет данных';
+					root.appendChild(empty);
 				}
 
 				return;
@@ -1064,9 +1256,56 @@
 					}
 
 					renderForm(tab, root);
+
+					// Setup history infinite scroll on first load if history tab is active
+					if (tab.id === 'history' && tab.submit?.type === 'api' && idx === 0) {
+						const endpoint = tab.submit.endpoint;
+						const resultBox = root.querySelector('.col-12.mt-3');
+						if (resultBox) {
+							historyReset();
+							historyState.endpoint = endpoint;
+							historyState.baseParams = {};
+
+							const listContainer = document.createElement('div');
+							listContainer.id = 'historyList';
+							resultBox.innerHTML = '';
+							resultBox.appendChild(listContainer);
+
+							const loader = document.createElement('div');
+							loader.id = 'historyLoader';
+							loader.style.display = 'none';
+							loader.textContent = 'Загрузка...';
+							resultBox.appendChild(loader);
+
+							const loadMoreBtn = document.createElement('button');
+							loadMoreBtn.id = 'historyLoadMoreBtn';
+							loadMoreBtn.className = 'btn btn-outline-primary history-pagination-btn';
+							loadMoreBtn.style.display = 'none';
+							loadMoreBtn.textContent = 'Загрузить ещё';
+							resultBox.appendChild(loadMoreBtn);
+
+							const end = document.createElement('div');
+							end.id = 'historyEnd';
+							end.style.display = 'none';
+							end.textContent = 'Конец списка';
+							resultBox.appendChild(end);
+
+							const sentinel = document.createElement('div');
+							sentinel.id = 'historySentinel';
+							resultBox.appendChild(sentinel);
+
+							historyState.listContainer = listContainer;
+							historyState.sentinel = sentinel;
+
+							// Load first page
+							historyFetchNext().then(() => {
+								historyAttachObserver();
+							});
+						}
+					}
 				});
 
-				// Handle tab switching for footer-action
+				// Handle tab switching for footer-action and history loading
 				const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
 				tabButtons.forEach(btn => {
 					btn.addEventListener('shown.bs.tab', (e) => {
@@ -1074,6 +1313,17 @@
 						const pane = document.querySelector(targetId);
 						if (pane) {
 							const form = pane.querySelector('form');
+							
+							// Check if this is history tab - load data if needed
+							if (pane.id === 'tab_history') {
+								const listContainer = document.getElementById('historyList');
+								if (listContainer && listContainer.children.length === 0 && !historyState.loading && !historyState.done) {
+									historyFetchNext().then(() => {
+										historyAttachObserver();
+									});
+								}
+							}
+							
 							// Hide footer by default when switching tabs
 							footerAction.classList.add('d-none');
 							document.querySelector('.app-shell').style.paddingBottom = '10px';
@@ -1103,6 +1353,9 @@
 				const bs = document.createElement('script');
 				bs.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js';
 				document.body.appendChild(bs);
+
+				// Enable horizontal wheel scroll for tabs on desktop
+				enableTabsWheelScroll();
 			} catch (e) {
 				showAlert('danger', e.message || 'Init error');
 			}
