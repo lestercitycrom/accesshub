@@ -204,11 +204,22 @@
 			const data = await resp.json().catch(() => null);
 
 			if (!resp.ok || !data) {
-				throw new Error(data?.error?.message || 'API request failed');
+				const message = data?.error?.message || 'API request failed';
+				if (resp.status === 403 || message === 'no access') {
+					throw new Error('Нет доступа. Обратитесь к администратору для добавления в систему.');
+				}
+				if (resp.status === 401) {
+					throw new Error('Ошибка авторизации. Перезагрузите WebApp.');
+				}
+				throw new Error(message);
 			}
 
 			if (data.ok !== true) {
-				throw new Error(data?.error?.message || 'API error');
+				const message = data?.error?.message || 'API error';
+				if (data?.error?.code === 'FORBIDDEN' || message === 'no access') {
+					throw new Error('Нет доступа. Обратитесь к администратору для добавления в систему.');
+				}
+				throw new Error(message);
 			}
 
 			return data;
@@ -228,12 +239,23 @@
 			const data = await resp.json().catch(() => null);
 
 			if (!resp.ok || !data) {
-				throw new Error(data?.error?.message || 'API request failed');
+				const message = data?.error?.message || 'API request failed';
+				if (resp.status === 403 || message === 'no access') {
+					throw new Error('Нет доступа. Обратитесь к администратору.');
+				}
+				if (resp.status === 401) {
+					throw new Error('Ошибка авторизации. Перезагрузите WebApp.');
+				}
+				throw new Error(message);
 			}
 
 			if (data.ok !== true) {
+				const message = data?.error?.message || 'API error';
+				if (data?.error?.code === 'FORBIDDEN' || message === 'no access') {
+					throw new Error('Нет доступа. Обратитесь к администратору.');
+				}
 				const fields = data?.error?.fields ? JSON.stringify(data.error.fields) : '';
-				throw new Error((data?.error?.message || 'API error') + (fields ? (' ' + fields) : ''));
+				throw new Error(message + (fields ? (' ' + fields) : ''));
 			}
 
 			return data;
