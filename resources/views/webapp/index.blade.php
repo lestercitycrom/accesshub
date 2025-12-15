@@ -44,19 +44,21 @@
 			margin: 8px 0 10px;
 		}
 
-		.meta-pill {
-			padding: 6px 10px;
-			border: 1px solid var(--ah-border);
-			background: rgba(255, 255, 255, .03);
-			border-radius: 10px;
+		.meta-bar .meta-right {
 			color: var(--ah-hint);
+			font-size: 12px;
+		}
+
+		.tabs-rail {
+			position: relative;
+			overflow: hidden;
+			padding: 0 10px 6px;
 		}
 
 		.tabs-wrap {
-			position: relative;
 			overflow-x: auto;
+			overflow-y: hidden;
 			-webkit-overflow-scrolling: touch;
-			padding: 0 18px 6px 8px;
 			scrollbar-width: none;
 		}
 
@@ -64,26 +66,24 @@
 			display: none;
 		}
 
-		.tabs-wrap::before,
-		.tabs-wrap::after {
+		.tabs-rail::before,
+		.tabs-rail::after {
 			content: '';
-			position: sticky;
+			position: absolute;
 			top: 0;
 			width: 18px;
 			height: 44px;
-			display: block;
 			pointer-events: none;
+			z-index: 5;
 		}
 
-		.tabs-wrap::before {
+		.tabs-rail::before {
 			left: 0;
-			float: left;
 			background: linear-gradient(to right, var(--ah-bg), rgba(0, 0, 0, 0));
 		}
 
-		.tabs-wrap::after {
+		.tabs-rail::after {
 			right: 0;
-			float: right;
 			background: linear-gradient(to left, var(--ah-bg), rgba(0, 0, 0, 0));
 		}
 
@@ -122,6 +122,13 @@
 			border-radius: 12px;
 			padding: 12px;
 			margin-top: 10px;
+		}
+
+		.card-panel form {
+			background: transparent !important;
+			border: none !important;
+			padding: 0 !important;
+			margin: 0 !important;
 		}
 
 		.card-section {
@@ -172,25 +179,33 @@
 
 		.tab-header {
 			text-align: center;
-			margin-bottom: 10px;
+			padding-top: 12px;
+			padding-bottom: 10px;
 		}
 
-		.tab-header .tab-icon {
+		.tab-icon-wrap {
+			width: 72px;
+			height: 72px;
+			border-radius: 999px;
+			margin: 0 auto 12px;
+			border: 1px solid var(--ah-border);
+			background: rgba(255, 255, 255, .03);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 26px;
+		}
+
+		.tab-title {
 			font-size: 20px;
-			line-height: 1;
-			margin-bottom: 6px;
-		}
-
-		.tab-header .tab-title {
-			font-size: 18px;
 			font-weight: 700;
 			margin: 0;
 		}
 
-		.tab-header .tab-subtitle {
-			color: var(--ah-hint);
+		.tab-subtitle {
+			margin-top: 6px;
 			font-size: 12px;
-			margin-top: 4px;
+			color: rgba(230, 237, 243, .55);
 		}
 
 		.history-pagination {
@@ -242,7 +257,7 @@
 			left: 0;
 			right: 0;
 			bottom: 0;
-			padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+			padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
 			background: var(--ah-bg);
 			border-top: 1px solid var(--ah-border);
 			z-index: 100;
@@ -250,7 +265,9 @@
 
 		.footer-action .btn {
 			width: 100%;
-			padding: 12px 14px;
+			border-radius: 8px !important;
+			padding: 10px 12px;
+			font-size: 14px;
 			font-weight: 600;
 		}
 
@@ -306,24 +323,32 @@
 		.table-striped > tbody > tr:nth-of-type(odd) > td {
 			background-color: rgba(255, 255, 255, .02);
 		}
+
+		#copyright {
+			color: var(--ah-hint);
+			font-size: 11px;
+		}
 	</style>
 </head>
 <body>
 <div class="app-shell">
 	<div class="meta-bar">
 		<div class="meta-left">Role: <span id="roleText">...</span></div>
-		<div class="meta-pill">TG: <span id="tgIdText">-</span></div>
+		<div class="meta-right">TG: <span id="tgIdText">-</span></div>
 	</div>
 
 	<div id="alerts"></div>
 
-	<div class="tabs-wrap">
-		<ul class="nav nav-tabs" id="tabsNav"></ul>
+	<div class="tabs-rail">
+		<div class="tabs-wrap">
+			<ul class="nav nav-tabs" id="tabsNav"></ul>
+		</div>
 	</div>
 	<div class="tab-content" id="tabsContent"></div>
 </div>
 
 <div id="footerAction" class="footer-action d-none"></div>
+<div id="copyright" class="text-center small text-muted my-3">@accesshub_123_bot</div>
 
 <script>
 	(function () {
@@ -335,6 +360,12 @@
 
 		tg.ready();
 		tg.expand();
+
+		// Hide Telegram bot menu (ReplyKeyboard) - menu is automatically hidden when WebApp is open
+		// Ensure WebApp takes full height to prevent menu from showing
+		if (tg.viewportStableHeight !== undefined) {
+			tg.viewportStableHeight = window.innerHeight;
+		}
 
 		// Set Telegram WebApp header colors
 		tg.setBackgroundColor('#0F1722');
@@ -349,6 +380,19 @@
 		}
 
 		const alerts = document.getElementById('alerts');
+		const footerAction = document.getElementById('footerAction');
+		const copyright = document.getElementById('copyright');
+
+		function updateCopyrightVisibility() {
+			const isFooterVisible = footerAction && !footerAction.classList.contains('d-none');
+			if (copyright) {
+				if (isFooterVisible) {
+					copyright.classList.add('d-none');
+				} else {
+					copyright.classList.remove('d-none');
+				}
+			}
+		}
 
 		function showAlert(type, text) {
 			alerts.innerHTML = `
@@ -437,6 +481,25 @@
 			return data;
 		}
 
+		function enableHorizontalWheelScroll(container) {
+			if (!container) {
+				return;
+			}
+
+			container.addEventListener('wheel', (e) => {
+				const hasHorizontal = container.scrollWidth > container.clientWidth;
+				if (!hasHorizontal) {
+					return;
+				}
+
+				// Convert vertical wheel to horizontal scroll
+				if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+					e.preventDefault();
+					container.scrollLeft += e.deltaY;
+				}
+			}, { passive: false });
+		}
+
 		function buildQuery(params) {
 			const q = new URLSearchParams();
 
@@ -473,19 +536,19 @@
 			const panel = document.createElement('div');
 			panel.className = 'card-panel';
 
-			// Tab header with icon (centered, BotFather-style)
+			// Tab header with icon (centered, BotFather-style with circle)
 			if (tab.header) {
 				const header = document.createElement('div');
 				header.className = 'tab-header';
 
 				if (tab.header.icon) {
-					const icon = document.createElement('div');
-					icon.className = 'tab-icon';
-					icon.textContent = tab.header.icon;
-					header.appendChild(icon);
+					const iconWrap = document.createElement('div');
+					iconWrap.className = 'tab-icon-wrap';
+					iconWrap.textContent = tab.header.icon;
+					header.appendChild(iconWrap);
 				}
 
-				const title = document.createElement('div');
+				const title = document.createElement('h2');
 				title.className = 'tab-title';
 				title.textContent = tab.header.title || tab.title;
 				header.appendChild(title);
@@ -499,13 +562,13 @@
 
 				panel.appendChild(header);
 			} else {
-				const title = document.createElement('div');
-				title.className = 'tab-header';
-				const titleText = document.createElement('div');
-				titleText.className = 'tab-title';
-				titleText.textContent = tab.title;
-				title.appendChild(titleText);
-				panel.appendChild(title);
+				const header = document.createElement('div');
+				header.className = 'tab-header';
+				const title = document.createElement('h2');
+				title.className = 'tab-title';
+				title.textContent = tab.title;
+				header.appendChild(title);
+				panel.appendChild(header);
 			}
 
 			const body = document.createElement('div');
@@ -526,6 +589,10 @@
 		function renderForm(tab, root) {
 			const form = document.createElement('form');
 			form.className = 'row g-2';
+			// Remove any background/border that might create panel-like appearance
+			form.style.background = 'transparent';
+			form.style.border = 'none';
+			form.style.padding = '0';
 
 			const fields = Array.isArray(tab.fields) ? tab.fields : [];
 
@@ -558,8 +625,9 @@
 			}
 
 			// Check if single-action form (BotFather-style footer)
-			const isSingleAction = tab.submit?.type === 'bot';
-			const footerAction = document.getElementById('footerAction');
+			// Single action if: no allow_clear (only one button will be shown)
+			const hasAllowClear = tab.allow_clear === true;
+			const isSingleAction = !hasAllowClear;
 
 			// Mark form for tab switching
 			form.dataset.singleAction = isSingleAction ? 'true' : 'false';
@@ -571,16 +639,23 @@
 					footerAction.classList.remove('d-none');
 					footerAction.innerHTML = '';
 					const footerBtn = document.createElement('button');
-					footerBtn.type = 'submit';
+					footerBtn.type = 'button'; // Prevent form submit - handle manually
 					footerBtn.className = 'btn btn-primary';
 					footerBtn.textContent = 'Отправить';
+					footerBtn.addEventListener('click', (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						handleSubmit(e);
+					});
 					footerAction.appendChild(footerBtn);
 					document.querySelector('.app-shell').style.paddingBottom = '80px';
+					updateCopyrightVisibility();
 				}
 			} else {
 				// Multi-action: use sticky actions
 				footerAction.classList.add('d-none');
 				document.querySelector('.app-shell').style.paddingBottom = '10px';
+				updateCopyrightVisibility();
 
 				const actions = document.createElement('div');
 				actions.className = 'col-12 mt-2 d-flex gap-2 sticky-actions';
@@ -590,21 +665,29 @@
 				submitBtn.className = 'btn btn-primary';
 				submitBtn.textContent = 'Отправить';
 
-				const resetBtn = document.createElement('button');
-				resetBtn.type = 'button';
-				resetBtn.className = 'btn btn-outline-secondary';
-				resetBtn.textContent = 'Очистить';
-				resetBtn.addEventListener('click', () => form.reset());
-
 				actions.appendChild(submitBtn);
-				actions.appendChild(resetBtn);
+
+				// Show "Очистить" only if allow_clear is true
+				if (tab.allow_clear === true) {
+					const resetBtn = document.createElement('button');
+					resetBtn.type = 'button';
+					resetBtn.className = 'btn btn-outline-secondary';
+					resetBtn.textContent = 'Очистить';
+					resetBtn.addEventListener('click', () => form.reset());
+					actions.appendChild(resetBtn);
+				}
 
 				form.appendChild(actions);
 			}
 
 			const resultBox = document.createElement('div');
 			resultBox.className = 'col-12 mt-3';
-			resultBox.innerHTML = '<div class="text-muted small">Результат появится здесь.</div>';
+			const placeholderDiv = document.createElement('div');
+			placeholderDiv.className = 'small';
+			placeholderDiv.style.color = 'rgba(230, 237, 243, .55)';
+			placeholderDiv.style.fontSize = '12px';
+			placeholderDiv.textContent = 'Результат появится здесь.';
+			resultBox.appendChild(placeholderDiv);
 
 			form.appendChild(resultBox);
 
@@ -660,12 +743,6 @@
 			};
 
 			form.addEventListener('submit', handleSubmit);
-			if (isSingleAction && footerAction) {
-				const footerBtn = footerAction.querySelector('button');
-				if (footerBtn) {
-					footerBtn.addEventListener('click', handleSubmit);
-				}
-			}
 
 			root.appendChild(form);
 		}
@@ -912,14 +989,27 @@
 						const pane = document.querySelector(targetId);
 						if (pane) {
 							const form = pane.querySelector('form');
-							const footerAction = document.getElementById('footerAction');
+							// Hide footer by default when switching tabs
+							footerAction.classList.add('d-none');
+							document.querySelector('.app-shell').style.paddingBottom = '10px';
+							
 							if (form && form.dataset.singleAction === 'true') {
-								footerAction?.classList.remove('d-none');
+								footerAction.classList.remove('d-none');
+								footerAction.innerHTML = '';
+								const footerBtn = document.createElement('button');
+								footerBtn.type = 'button'; // Prevent form submit
+								footerBtn.className = 'btn btn-primary';
+								footerBtn.textContent = 'Отправить';
+								footerBtn.addEventListener('click', (e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									// Find the handleSubmit function from form's event listeners
+									form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+								});
+								footerAction.appendChild(footerBtn);
 								document.querySelector('.app-shell').style.paddingBottom = '80px';
-							} else {
-								footerAction?.classList.add('d-none');
-								document.querySelector('.app-shell').style.paddingBottom = '10px';
 							}
+							updateCopyrightVisibility();
 						}
 					});
 				});

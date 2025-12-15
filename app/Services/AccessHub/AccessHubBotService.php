@@ -86,7 +86,17 @@ final class AccessHubBotService
 		}
 
 		if (str_starts_with($text, '/start') || str_starts_with($text, '/help') || $text === self::BTN_HELP) {
-			$this->telegram->sendMessage($chatId, $this->helpText(), $this->mainReplyKeyboard($telegramId));
+			$user = $this->loadUser($telegramId);
+			$denyByDefault = (bool) config('accesshub.deny_by_default', true);
+			
+			// If user has access to WebApp, don't show ReplyKeyboard (hide menu)
+			if (!$denyByDefault || $user !== null) {
+				// User has access - send message without ReplyKeyboard to hide menu
+				$this->telegram->sendMessage($chatId, $this->helpText(), null);
+			} else {
+				// User doesn't have access - show menu as usual
+				$this->telegram->sendMessage($chatId, $this->helpText(), $this->mainReplyKeyboard($telegramId));
+			}
 			return;
 		}
 
@@ -424,6 +434,9 @@ final class AccessHubBotService
 	 */
 	private function handleWebAppData(int|string $chatId, string $telegramId, string $raw): void
 	{
+		// Hide ReplyKeyboard when WebApp sends data
+		$this->telegram->removeReplyKeyboard($chatId);
+
 		$data = json_decode($raw, true);
 
 		if (!is_array($data)) {

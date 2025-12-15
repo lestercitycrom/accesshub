@@ -57,6 +57,22 @@ final class TelegramApiClient
 		$this->post('answerCallbackQuery', $payload);
 	}
 
+	public function removeReplyKeyboard(int|string $chatId, ?string $text = null): void
+	{
+		$payload = [
+			'chat_id' => $chatId,
+			'reply_markup' => [
+				'remove_keyboard' => true,
+			],
+		];
+
+		if ($text !== null) {
+			$payload['text'] = $this->sanitizeUtf8($text);
+		}
+
+		$this->post('sendMessage', $payload);
+	}
+
 	public function getFilePath(string $fileId): ?string
 	{
 		$response = $this->get('getFile', [
