@@ -1,239 +1,14 @@
-Отлично. Тогда следующий шаг — **поднять “ядро” AccessHub**: БД + модели + сервис выдачи + восстановление доступности + обработка сообщений (order_id + Game(Platform) + qty).
+Ок, идём дальше: **админская часть** — `/add` (пошаговый мастер), `/import` (массовая загрузка текстом или файлом), и `/log` (просмотр истории). Плюс — **шифрование чувствительных полей** через встроенные encrypted casts Laravel.
 
-Ниже даю **полный, компилируемый набор файлов** под **Laravel 12 + PHP 8.3 + MySQL**, с PSR-12 и табами.
-
----
-
-# Шаг 1. Конфиг проекта AccessHub
-
-## `config/accesshub.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-return [
-	/*
-	|--------------------------------------------------------------------------
-	| Platforms
-	|--------------------------------------------------------------------------
-	| Пока можно работать без списка платформ.
-	| Позже включим enforce_platform_list и дадим строгий список.
-	*/
-	'platforms' => [
-		'PS',
-		'Xbox',
-		'Steam',
-		'Epic',
-		'Nintendo',
-	],
-
-	'enforce_platform_list' => false,
-
-	/*
-	|--------------------------------------------------------------------------
-	| Issue rules
-	|--------------------------------------------------------------------------
-	*/
-	'max_uses_default' => 3,
-	'release_days' => 14,
-
-	/*
-	|--------------------------------------------------------------------------
-	| Security / Access
-	|--------------------------------------------------------------------------
-	| По умолчанию доступ только у тех, кто есть в telegram_users и активен.
-	*/
-	'deny_by_default' => true,
-];
-```
+Ниже — шаги + код + как тестить после каждого шага.
 
 ---
 
-# Шаг 2. Миграции (MySQL)
+# Шаг 1. Шифрование чувствительных полей (Laravel encrypted casts)
 
-## 2.1 `database/migrations/2025_12_15_000001_create_telegram_users_table.php`
+## 1.1 Обнови модель `Account`
 
-```php
-<?php
-
-declare(strict_types=1);
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class () extends Migration
-{
-	public function up(): void
-	{
-		Schema::create('telegram_users', function (Blueprint $table): void {
-			$table->id();
-			$table->string('telegram_id')->unique();
-			$table->string('role')->default('operator'); // admin|operator
-			$table->boolean('is_active')->default(true);
-			$table->timestamps();
-		});
-	}
-
-	public function down(): void
-	{
-		Schema::dropIfExists('telegram_users');
-	}
-};
-```
-
-## 2.2 `database/migrations/2025_12_15_000002_create_accounts_table.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class () extends Migration
-{
-	public function up(): void
-	{
-		Schema::create('accounts', function (Blueprint $table): void {
-			$table->id();
-
-			$table->string('platform');
-			$table->string('game');
-
-			$table->string('game_login');
-			$table->text('game_password');
-
-			// Sensitive (store encrypted in app layer)
-			$table->text('email_login')->nullable();
-			$table->text('email_password')->nullable();
-
-			$table->json('codes_receiver_emails')->nullable();
-			$table->json('platform_meta')->nullable();
-
-			$table->unsignedTinyInteger('max_uses')->default(3);
-			$table->unsignedTinyInteger('available_uses')->default(3);
-
-			// cooldown = hold (единая пауза)
-			$table->timestamp('next_release_at')->nullable();
-
-			$table->boolean('is_active')->default(true);
-
-			$table->timestamps();
-
-			$table->index(['platform', 'game']);
-			$table->unique(['platform', 'game', 'game_login'], 'accounts_platform_game_login_unique');
-		});
-	}
-
-	public function down(): void
-	{
-		Schema::dropIfExists('accounts');
-	}
-};
-```
-
-## 2.3 `database/migrations/2025_12_15_000003_create_issuance_logs_table.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class () extends Migration
-{
-	public function up(): void
-	{
-		Schema::create('issuance_logs', function (Blueprint $table): void {
-			$table->id();
-
-			$table->string('order_id');
-			$table->string('operator_telegram_id');
-
-			$table->foreignId('account_id')->constrained('accounts');
-
-			$table->string('game');
-			$table->string('platform');
-
-			$table->timestamp('issued_at');
-			$table->string('note')->nullable();
-
-			$table->timestamps();
-
-			$table->index(['order_id', 'operator_telegram_id']);
-			$table->unique(['order_id', 'account_id'], 'issuance_logs_order_account_unique');
-		});
-	}
-
-	public function down(): void
-	{
-		Schema::dropIfExists('issuance_logs');
-	}
-};
-```
-
-Запускаем:
-
-```bash
-php artisan migrate
-```
-
----
-
-# Шаг 3. Enum роли + модели
-
-## 3.1 `app/Enums/TelegramUserRole.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Enums;
-
-enum TelegramUserRole: string
-{
-	case Admin = 'admin';
-	case Operator = 'operator';
-}
-```
-
-## 3.2 `app/Models/TelegramUser.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Models;
-
-use App\Enums\TelegramUserRole;
-use Illuminate\Database\Eloquent\Model;
-
-final class TelegramUser extends Model
-{
-	protected $fillable = [
-		'telegram_id',
-		'role',
-		'is_active',
-	];
-
-	protected $casts = [
-		'is_active' => 'bool',
-		'role' => TelegramUserRole::class,
-	];
-}
-```
-
-## 3.3 `app/Models/Account.php`
+`app/Models/Account.php`:
 
 ```php
 <?php
@@ -262,6 +37,11 @@ final class Account extends Model
 	];
 
 	protected $casts = [
+		// Security: encrypt sensitive fields at rest
+		'game_password' => 'encrypted',
+		'email_login' => 'encrypted',
+		'email_password' => 'encrypted',
+
 		'codes_receiver_emails' => 'array',
 		'platform_meta' => 'array',
 		'next_release_at' => 'datetime',
@@ -270,46 +50,272 @@ final class Account extends Model
 }
 ```
 
-## 3.4 `app/Models/IssuanceLog.php`
+### Как протестить (Шаг 1)
+
+1. Открой tinker:
+
+```bash
+php artisan tinker
+```
+
+2. Создай запись:
+
+```php
+$a = \App\Models\Account::create([
+	'platform' => 'Xbox X',
+	'game' => 'Minecraft',
+	'game_login' => 'enc_test_login',
+	'game_password' => 'enc_test_pass',
+	'email_login' => 'enc@test.com',
+	'email_password' => 'mail_pass',
+	'max_uses' => 3,
+	'available_uses' => 3,
+	'is_active' => true,
+]);
+
+$a->fresh()->game_password;
+```
+
+3. В MySQL проверь, что в `accounts.game_password/email_login/email_password` лежит **не читаемый текст** (шифротекст), а из Eloquent читается нормально.
+
+---
+
+# Шаг 2. Пошаговый мастер `/add` для админа
+
+Сделаем мастер через Cache (без доп. таблиц). Админ пишет `/add`, бот задаёт вопросы и сохраняет введённое.
+
+## 2.1 Wizard-сервис
+
+`app/Services/AccessHub/Admin/AddAccountWizard.php`:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-namespace App\Models;
+namespace App\Services\AccessHub\Admin;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Account;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
-final class IssuanceLog extends Model
+final class AddAccountWizard
 {
-	protected $fillable = [
-		'order_id',
-		'operator_telegram_id',
-		'account_id',
-		'game',
-		'platform',
-		'issued_at',
-		'note',
-	];
+	private const KEY_PREFIX = 'accesshub:add_wizard:';
 
-	protected $casts = [
-		'issued_at' => 'datetime',
-	];
-
-	public function account(): BelongsTo
+	/**
+	 * @return array{state: string, prompt: string}
+	 */
+	public function start(string $telegramId): array
 	{
-		return $this->belongsTo(Account::class);
+		$this->put($telegramId, [
+			'step' => 'platform',
+			'data' => [],
+		]);
+
+		return [
+			'state' => 'started',
+			'prompt' => $this->prompt('platform'),
+		];
+	}
+
+	public function cancel(string $telegramId): void
+	{
+		Cache::forget($this->key($telegramId));
+	}
+
+	public function isActive(string $telegramId): bool
+	{
+		return Cache::has($this->key($telegramId));
+	}
+
+	/**
+	 * @return array{done: bool, message: string}
+	 */
+	public function handleInput(string $telegramId, string $text): array
+	{
+		$ctx = $this->get($telegramId);
+		if ($ctx === null) {
+			return [
+				'done' => true,
+				'message' => 'Мастер не запущен. Используйте /add.',
+			];
+		}
+
+		$text = trim($text);
+		if ($text === '') {
+			return [
+				'done' => false,
+				'message' => 'Пустое значение. ' . $this->prompt((string) $ctx['step']),
+			];
+		}
+
+		$step = (string) $ctx['step'];
+		$data = (array) $ctx['data'];
+
+		// Special keywords
+		if (Str::lower($text) === 'skip' && in_array($step, ['email_login', 'email_password', 'codes_receiver_emails', 'platform_meta'], true)) {
+			$ctx['step'] = $this->nextStep($step);
+			$this->put($telegramId, $ctx);
+
+			return [
+				'done' => false,
+				'message' => $this->prompt((string) $ctx['step']),
+			];
+		}
+
+		// Assign input
+		$data[$step] = $this->normalize($step, $text);
+
+		$next = $this->nextStep($step);
+
+		// Finish?
+		if ($next === 'finish') {
+			$account = $this->createAccount($data);
+			$this->cancel($telegramId);
+
+			return [
+				'done' => true,
+				'message' => "Готово. Аккаунт добавлен.\nID: {$account->id}\n{$account->game} ({$account->platform})\nLogin: {$account->game_login}",
+			];
+		}
+
+		$ctx['data'] = $data;
+		$ctx['step'] = $next;
+		$this->put($telegramId, $ctx);
+
+		return [
+			'done' => false,
+			'message' => $this->prompt($next),
+		];
+	}
+
+	private function createAccount(array $data): Account
+	{
+		$maxUses = (int) config('accesshub.max_uses_default', 3);
+
+		$emailLogin = $data['email_login'] ?? null;
+		$emailPassword = $data['email_password'] ?? null;
+
+		return Account::create([
+			'platform' => (string) $data['platform'],
+			'game' => (string) $data['game'],
+			'game_login' => (string) $data['game_login'],
+			'game_password' => (string) $data['game_password'],
+
+			'email_login' => $emailLogin !== null ? (string) $emailLogin : null,
+			'email_password' => $emailPassword !== null ? (string) $emailPassword : null,
+
+			'codes_receiver_emails' => $data['codes_receiver_emails'] ?? null,
+			'platform_meta' => $data['platform_meta'] ?? null,
+
+			'max_uses' => $maxUses,
+			'available_uses' => $maxUses,
+			'next_release_at' => null,
+			'is_active' => true,
+		]);
+	}
+
+	private function normalize(string $step, string $text): mixed
+	{
+		if ($step === 'codes_receiver_emails') {
+			// Input: mail1@mail.com, mail2@mail.com OR "-"
+			if ($text === '-' || Str::lower($text) === 'none') {
+				return null;
+			}
+
+			$items = array_values(array_filter(array_map(
+				static fn (string $v): string => trim($v),
+				explode(',', $text)
+			), static fn (string $v): bool => $v !== ''));
+
+			return $items === [] ? null : $items;
+		}
+
+		if ($step === 'platform_meta') {
+			// Simple: store raw text for now
+			if ($text === '-' || Str::lower($text) === 'none') {
+				return null;
+			}
+
+			return ['raw' => $text];
+		}
+
+		return $text;
+	}
+
+	private function nextStep(string $step): string
+	{
+		return match ($step) {
+			'platform' => 'game',
+			'game' => 'game_login',
+			'game_login' => 'game_password',
+			'game_password' => 'email_login',
+			'email_login' => 'email_password',
+			'email_password' => 'codes_receiver_emails',
+			'codes_receiver_emails' => 'platform_meta',
+			'platform_meta' => 'finish',
+			default => 'finish',
+		};
+	}
+
+	private function prompt(string $step): string
+	{
+		return match ($step) {
+			'platform' => "Введите платформу (пока тестово, позже будет строгий список).\nПример: Xbox X\n\n/abort — отмена",
+			'game' => "Введите название игры.\nПример: Minecraft\n\n/abort — отмена",
+			'game_login' => "Введите логин игрового аккаунта.\n\n/abort — отмена",
+			'game_password' => "Введите пароль игрового аккаунта.\n\n/abort — отмена",
+			'email_login' => "Введите логин почты (или 'skip').\n\n/abort — отмена",
+			'email_password' => "Введите пароль почты (или 'skip').\n\n/abort — отмена",
+			'codes_receiver_emails' => "Введите почты для кодов через запятую (или '-' / 'skip').\nПример: backup@mail.com, backup2@mail.com\n\n/abort — отмена",
+			'platform_meta' => "Введите доп. данные платформы (или '-' / 'skip').\nПример: Steam Guard: ...\n\n/abort — отмена",
+			default => "Ожидаю данные.\n\n/abort — отмена",
+		};
+	}
+
+	private function key(string $telegramId): string
+	{
+		return self::KEY_PREFIX . $telegramId;
+	}
+
+	private function get(string $telegramId): ?array
+	{
+		/** @var array|null $ctx */
+		$ctx = Cache::get($this->key($telegramId));
+
+		return is_array($ctx) ? $ctx : null;
+	}
+
+	private function put(string $telegramId, array $ctx): void
+	{
+		Cache::put($this->key($telegramId), $ctx, now()->addMinutes(30));
 	}
 }
 ```
 
+### Как протестить (Шаг 2)
+
+1. Убедись, что ты добавлен как admin:
+
+```bash
+php artisan accesshub:user:add <твой_telegram_id> admin
+```
+
+2. В Telegram напиши:
+
+* `/add`
+* дальше отвечай по шагам (platform → game → login → pass → email …)
+
+3. Проверь в MySQL таблицу `accounts` — появилась запись, пароль хранится шифрованно.
+
 ---
 
-# Шаг 4. Telegram API клиент
+# Шаг 3. Массовый импорт `/import` (текстом или файлом)
 
-## `app/Services/Telegram/TelegramApiClient.php`
+## 3.1 Расширяем Telegram API клиент (скачивание файла)
+
+`app/Services/Telegram/TelegramApiClient.php` — ДОБАВЬ методы:
 
 ```php
 <?php
@@ -347,266 +353,245 @@ final class TelegramApiClient
 			]);
 		}
 	}
-}
-```
 
----
-
-# Шаг 5. Парсер сообщений (order_id + Game(Platform) + qty)
-
-## 5.1 DTO `app/Services/Telegram/ParsedIssueRequest.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Services\Telegram;
-
-final class ParsedIssueRequest
-{
-	public function __construct(
-		public readonly string $orderId,
-		public readonly string $game,
-		public readonly string $platform,
-		public readonly int $qty
-	) {
-	}
-}
-```
-
-## 5.2 Парсер `app/Services/Telegram/TelegramUpdateParser.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Services\Telegram;
-
-final class TelegramUpdateParser
-{
-	public function parseIssueRequest(string $text): ?ParsedIssueRequest
+	public function getFilePath(string $fileId): ?string
 	{
-		$lines = array_values(array_filter(array_map(
-			static fn (string $v): string => trim($v),
-			preg_split('/\R/u', trim($text)) ?: []
-		), static fn (string $v): bool => $v !== ''));
-
-		if (count($lines) < 2) {
+		$token = (string) config('services.telegram.token');
+		if ($token === '') {
 			return null;
 		}
 
-		$orderId = $lines[0];
-		$gamePlatform = $lines[1];
-		$qtyLine = $lines[2] ?? '';
+		$url = "https://api.telegram.org/bot{$token}/getFile";
 
-		if (!preg_match('/^\d+$/', $orderId)) {
-			return null;
-		}
-
-		$qty = $this->extractQty($gamePlatform, $qtyLine);
-		$gamePlatform = $this->stripQtySuffix($gamePlatform);
-
-		if (!preg_match('/^(.*?)\s*\((.*?)\)\s*$/u', $gamePlatform, $m)) {
-			return null;
-		}
-
-		$game = trim($m[1]);
-		$platform = trim($m[2]);
-
-		if ($game === '' || $platform === '') {
-			return null;
-		}
-
-		return new ParsedIssueRequest($orderId, $game, $platform, $qty);
-	}
-
-	private function extractQty(string $line2, string $line3): int
-	{
-		// Supports: "Game (Platform) x2" or third line "qty: 2"
-		if (preg_match('/\bx(\d{1,2})\b/u', $line2, $m)) {
-			return max(1, (int) $m[1]);
-		}
-
-		if (preg_match('/\bqty\s*:\s*(\d{1,2})\b/iu', $line3, $m)) {
-			return max(1, (int) $m[1]);
-		}
-
-		return 1;
-	}
-
-	private function stripQtySuffix(string $line2): string
-	{
-		return (string) preg_replace('/\s+\bx\d{1,2}\b\s*$/u', '', $line2);
-	}
-}
-```
-
----
-
-# Шаг 6. Сервис выдачи аккаунтов (ключевая логика)
-
-## `app/Services/AccessHub/IssueAccountsService.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Services\AccessHub;
-
-use App\Models\Account;
-use App\Models\IssuanceLog;
-use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
-use RuntimeException;
-
-final class IssueAccountsService
-{
-	/**
-	 * @return array<int, array{game_login: string, game_password: string}>
-	 */
-	public function issue(
-		string $orderId,
-		string $operatorTelegramId,
-		string $game,
-		string $platform,
-		int $qty
-	): array {
-		$qty = max(1, $qty);
-		$now = CarbonImmutable::now();
-		$releaseDays = (int) config('accesshub.release_days', 14);
-
-		$this->assertPlatformAllowed($platform);
-
-		return DB::transaction(function () use ($orderId, $operatorTelegramId, $game, $platform, $qty, $now, $releaseDays): array {
-			$accounts = Account::query()
-				->where('is_active', true)
-				->where('game', $game)
-				->where('platform', $platform)
-				->where('available_uses', '>', 0)
-				->orderBy('id')
-				->lockForUpdate()
-				->limit($qty)
-				->get();
-
-			if ($accounts->count() < $qty) {
-				throw new RuntimeException("Недостаточно свободных аккаунтов: доступно {$accounts->count()}, нужно {$qty}.");
-			}
-
-			$result = [];
-
-			foreach ($accounts as $account) {
-				$account->available_uses = (int) $account->available_uses - 1;
-
-				if ((int) $account->available_uses <= 0) {
-					$account->available_uses = 0;
-					$account->next_release_at = $now->addDays($releaseDays);
-				}
-
-				$account->save();
-
-				IssuanceLog::create([
-					'order_id' => $orderId,
-					'operator_telegram_id' => $operatorTelegramId,
-					'account_id' => $account->id,
-					'game' => $account->game,
-					'platform' => $account->platform,
-					'issued_at' => $now,
-					'note' => null,
-				]);
-
-				$result[] = [
-					'game_login' => (string) $account->game_login,
-					'game_password' => (string) $account->game_password,
-				];
-			}
-
-			return $result;
-		}, 3);
-	}
-
-	private function assertPlatformAllowed(string $platform): void
-	{
-		$enforce = (bool) config('accesshub.enforce_platform_list', false);
-
-		if (!$enforce) {
-			return;
-		}
-
-		$allowed = (array) config('accesshub.platforms', []);
-
-		if (!in_array($platform, $allowed, true)) {
-			throw new RuntimeException('Неизвестная платформа. Уточните список платформ у администратора.');
-		}
-	}
-}
-```
-
----
-
-# Шаг 7. Восстановление доступности (через 14 дней)
-
-## 7.1 Команда `app/Console/Commands/AccessHubRestoreAvailabilityCommand.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Console\Commands;
-
-use App\Models\Account;
-use Carbon\CarbonImmutable;
-use Illuminate\Console\Command;
-
-final class AccessHubRestoreAvailabilityCommand extends Command
-{
-	protected $signature = 'accesshub:restore-availability';
-	protected $description = 'Restore availability for accounts when next_release_at is reached (cooldown=hold).';
-
-	public function handle(): int
-	{
-		$now = CarbonImmutable::now();
-
-		$updated = Account::query()
-			->where('is_active', true)
-			->where('available_uses', '=', 0)
-			->whereNotNull('next_release_at')
-			->where('next_release_at', '<=', $now)
-			->update([
-				'available_uses' => 1,
-				'next_release_at' => null,
-				'updated_at' => $now,
+		try {
+			$response = Http::timeout(10)->get($url, [
+				'file_id' => $fileId,
 			]);
 
-		$this->info("Restored accounts: {$updated}");
+			$data = $response->json();
 
-		return self::SUCCESS;
+			$filePath = $data['result']['file_path'] ?? null;
+
+			return is_string($filePath) ? $filePath : null;
+		} catch (Throwable $e) {
+			Log::error('telegram.getFile_failed', ['error' => $e->getMessage()]);
+			return null;
+		}
+	}
+
+	public function downloadFile(string $filePath): ?string
+	{
+		$token = (string) config('services.telegram.token');
+		if ($token === '') {
+			return null;
+		}
+
+		$url = "https://api.telegram.org/file/bot{$token}/{$filePath}";
+
+		try {
+			$response = Http::timeout(20)->get($url);
+
+			if (!$response->successful()) {
+				return null;
+			}
+
+			return (string) $response->body();
+		} catch (Throwable $e) {
+			Log::error('telegram.downloadFile_failed', ['error' => $e->getMessage()]);
+			return null;
+		}
 	}
 }
 ```
 
-## 7.2 Регистрация расписания
+## 3.2 Сервис импорта
 
-В зависимости от структуры Laravel 12 у тебя может быть `routes/console.php`.
-
-**Если есть `routes/console.php`**, добавь:
+`app/Services/AccessHub/Admin/BulkImportService.php`:
 
 ```php
 <?php
 
-use Illuminate\Support\Facades\Schedule;
+declare(strict_types=1);
 
-Schedule::command('accesshub:restore-availability')->hourly();
+namespace App\Services\AccessHub\Admin;
+
+use App\Models\Account;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Str;
+
+final class BulkImportService
+{
+	/**
+	 * @return array{added: int, skipped: int, errors: int}
+	 */
+	public function importFromText(string $text): array
+	{
+		$lines = preg_split('/\R/u', trim($text)) ?: [];
+
+		$added = 0;
+		$skipped = 0;
+		$errors = 0;
+
+		$maxUses = (int) config('accesshub.max_uses_default', 3);
+
+		foreach ($lines as $line) {
+			$line = trim((string) $line);
+
+			if ($line === '' || str_starts_with($line, '#')) {
+				continue;
+			}
+
+			// Format:
+			// Platform | Game | game_login | game_password | email_login | email_password | backup_emails
+			$parts = array_map(static fn (string $v): string => trim($v), explode('|', $line));
+
+			if (count($parts) < 4) {
+				$errors++;
+				continue;
+			}
+
+			[$platform, $game, $gameLogin, $gamePassword] = $parts;
+
+			$emailLogin = $parts[4] ?? null;
+			$emailPassword = $parts[5] ?? null;
+			$backupEmails = $parts[6] ?? null;
+
+			$emailLogin = $this->nullIfDash($emailLogin);
+			$emailPassword = $this->nullIfDash($emailPassword);
+
+			$codes = null;
+			$backupEmails = $this->nullIfDash($backupEmails);
+			if ($backupEmails !== null) {
+				$codes = array_values(array_filter(array_map(
+					static fn (string $v): string => trim($v),
+					preg_split('/[,;\s]+/u', $backupEmails) ?: []
+				), static fn (string $v): bool => $v !== ''));
+			}
+
+			try {
+				Account::create([
+					'platform' => $platform,
+					'game' => $game,
+					'game_login' => $gameLogin,
+					'game_password' => $gamePassword,
+					'email_login' => $emailLogin,
+					'email_password' => $emailPassword,
+					'codes_receiver_emails' => $codes,
+					'platform_meta' => null,
+					'max_uses' => $maxUses,
+					'available_uses' => $maxUses,
+					'next_release_at' => null,
+					'is_active' => true,
+				]);
+
+				$added++;
+			} catch (QueryException) {
+				// Duplicate by unique(platform, game, game_login) or other constraint
+				$skipped++;
+			} catch (\Throwable) {
+				$errors++;
+			}
+		}
+
+		return [
+			'added' => $added,
+			'skipped' => $skipped,
+			'errors' => $errors,
+		];
+	}
+
+	private function nullIfDash(?string $value): ?string
+	{
+		if ($value === null) {
+			return null;
+		}
+
+		$value = trim($value);
+
+		if ($value === '' || $value === '-' || Str::lower($value) === 'none') {
+			return null;
+		}
+
+		return $value;
+	}
+}
 ```
+
+### Как протестить (Шаг 3)
+
+1. В Telegram (админом) отправь:
+
+```
+/import
+Xbox X | Minecraft | bulk_login_1 | bulk_pass_1 | mail1@mail.com | mailpass1 | backup1@mail.com
+Xbox X | Minecraft | bulk_login_2 | bulk_pass_2 | - | - | -
+```
+
+2. Бот должен ответить: сколько добавил/пропустил/ошибок.
+3. Проверь `accounts` в MySQL.
 
 ---
 
-# Шаг 8. Связываем webhook → выдачу
+# Шаг 4. Команда `/log` (просмотр истории по аккаунту)
 
-## 8.1 Сервис бота `app/Services/AccessHub/AccessHubBotService.php`
+`/log 123` → показать последние 10 выдач по account_id.
+
+## `app/Services/AccessHub/Admin/LogsService.php`
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\AccessHub\Admin;
+
+use App\Models\IssuanceLog;
+
+final class LogsService
+{
+	public function accountLog(int $accountId, int $limit = 10): string
+	{
+		$items = IssuanceLog::query()
+			->where('account_id', $accountId)
+			->orderByDesc('issued_at')
+			->limit($limit)
+			->get();
+
+		if ($items->isEmpty()) {
+			return 'Логов нет.';
+		}
+
+		$lines = [];
+		$lines[] = "Логи аккаунта #{$accountId} (последние {$limit}):";
+		$lines[] = '';
+
+		foreach ($items as $log) {
+			$lines[] = "{$log->issued_at?->format('Y-m-d H:i:s')} | order: {$log->order_id} | operator: {$log->operator_telegram_id}";
+		}
+
+		return implode("\n", $lines);
+	}
+}
+```
+
+### Как протестить (Шаг 4)
+
+1. Сделай выдачу аккаунта оператором.
+2. Админом напиши:
+
+```
+/log 1
+```
+
+3. Убедись, что выводит записи.
+
+---
+
+# Шаг 5. Обновляем `AccessHubBotService` — маршрутизация команд `/add /abort /import /log`
+
+Заменяй файл целиком:
+
+`app/Services/AccessHub/AccessHubBotService.php`:
 
 ```php
 <?php
@@ -615,7 +600,11 @@ declare(strict_types=1);
 
 namespace App\Services\AccessHub;
 
+use App\Enums\TelegramUserRole;
 use App\Models\TelegramUser;
+use App\Services\AccessHub\Admin\AddAccountWizard;
+use App\Services\AccessHub\Admin\BulkImportService;
+use App\Services\AccessHub\Admin\LogsService;
 use App\Services\Telegram\TelegramApiClient;
 use App\Services\Telegram\TelegramUpdateParser;
 use RuntimeException;
@@ -626,7 +615,10 @@ final class AccessHubBotService
 	public function __construct(
 		private readonly TelegramApiClient $telegram,
 		private readonly TelegramUpdateParser $parser,
-		private readonly IssueAccountsService $issuer
+		private readonly IssueAccountsService $issuer,
+		private readonly AddAccountWizard $addWizard,
+		private readonly BulkImportService $bulkImport,
+		private readonly LogsService $logs
 	) {
 	}
 
@@ -654,7 +646,7 @@ final class AccessHubBotService
 		$telegramId = (string) $from['id'];
 		$text = (string) ($message['text'] ?? '');
 
-		if ($text === '') {
+		if ($text === '' && !isset($message['document'])) {
 			return;
 		}
 
@@ -675,6 +667,109 @@ final class AccessHubBotService
 			return;
 		}
 
+		// Wizard input takes priority (admin only)
+		if ($this->addWizard->isActive($telegramId)) {
+			if ($text === '/abort') {
+				$this->addWizard->cancel($telegramId);
+				$this->telegram->sendMessage($chatId, 'Ок, мастер /add отменён.');
+				return;
+			}
+
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->addWizard->cancel($telegramId);
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			$result = $this->addWizard->handleInput($telegramId, $text);
+			$this->telegram->sendMessage($chatId, $result['message']);
+			return;
+		}
+
+		// Admin commands
+		if (str_starts_with($text, '/add')) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			$started = $this->addWizard->start($telegramId);
+			$this->telegram->sendMessage($chatId, $started['prompt']);
+			return;
+		}
+
+		if (str_starts_with($text, '/import')) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			// Option A: /import + multiline text in same message
+			$payload = trim((string) preg_replace('/^\/import\s*/u', '', $text));
+			if ($payload !== '') {
+				$stat = $this->bulkImport->importFromText($payload);
+				$this->telegram->sendMessage($chatId, "Импорт завершён.\nДобавлено: {$stat['added']}\nПропущено: {$stat['skipped']}\nОшибок: {$stat['errors']}");
+				return;
+			}
+
+			// Option B: /import without text => ask for next message OR handle document if already present
+			$this->telegram->sendMessage($chatId, "Пришлите текст строками после /import или отправьте TXT-файл (документ) с содержимым.\nФормат строки:\nPlatform | Game | login | pass | email | emailpass | backupEmails");
+			return;
+		}
+
+		if (isset($message['document'])) {
+			// Allow import by sending a file. To keep flow simple:
+			// if admin sends a document, we try to parse it as import file.
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			$document = $message['document'];
+			if (!is_array($document)) {
+				return;
+			}
+
+			$fileId = (string) ($document['file_id'] ?? '');
+			if ($fileId === '') {
+				$this->telegram->sendMessage($chatId, 'Не удалось прочитать файл.');
+				return;
+			}
+
+			$filePath = $this->telegram->getFilePath($fileId);
+			if ($filePath === null) {
+				$this->telegram->sendMessage($chatId, 'Не удалось получить путь файла.');
+				return;
+			}
+
+			$body = $this->telegram->downloadFile($filePath);
+			if ($body === null || trim($body) === '') {
+				$this->telegram->sendMessage($chatId, 'Файл пустой или не удалось скачать.');
+				return;
+			}
+
+			$stat = $this->bulkImport->importFromText($body);
+			$this->telegram->sendMessage($chatId, "Импорт из файла завершён.\nДобавлено: {$stat['added']}\nПропущено: {$stat['skipped']}\nОшибок: {$stat['errors']}");
+			return;
+		}
+
+		if (str_starts_with($text, '/log')) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			if (!preg_match('/^\/log\s+(\d+)\s*$/u', $text, $m)) {
+				$this->telegram->sendMessage($chatId, "Формат: /log <account_id>\nПример: /log 12");
+				return;
+			}
+
+			$accountId = (int) $m[1];
+			$this->telegram->sendMessage($chatId, $this->logs->accountLog($accountId, 10));
+			return;
+		}
+
+		// Operator issue request
 		$parsed = $this->parser->parseIssueRequest($text);
 		if ($parsed === null) {
 			$this->telegram->sendMessage($chatId, $this->invalidFormatText());
@@ -703,7 +798,7 @@ final class AccessHubBotService
 		return implode("\n", [
 			"AccessHub",
 			"",
-			"Формат запроса:",
+			"Оператор (выдача):",
 			"1) Номер заказа",
 			"2) Игра (Платформа)",
 			"",
@@ -711,8 +806,14 @@ final class AccessHubBotService
 			"2446303",
 			"Minecraft (Xbox X)",
 			"",
-			"Qty (пока тест): можно добавить 'x2' в конец второй строки:",
+			"Qty (тест): суффикс x2 во 2-й строке:",
 			"Minecraft (Xbox X) x2",
+			"",
+			"Админ:",
+			"/add — добавить аккаунт (мастер)",
+			"/abort — отменить мастер",
+			"/import — массовый импорт текстом или TXT файлом",
+			"/log <account_id> — логи выдач по аккаунту",
 		]);
 	}
 
@@ -754,131 +855,12 @@ final class AccessHubBotService
 }
 ```
 
-## 8.2 Обнови `TelegramWebhookController` чтобы дергать сервис
+### Как протестить (Шаг 5)
 
-`app/Http/Controllers/TelegramWebhookController.php`:
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Http\Controllers;
-
-use App\Services\AccessHub\AccessHubBotService;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-
-final class TelegramWebhookController extends Controller
-{
-	public function __invoke(Request $request, AccessHubBotService $bot): Response
-	{
-		$secret = (string) config('services.telegram.webhook_secret');
-		$header = (string) $request->header('X-Telegram-Bot-Api-Secret-Token', '');
-
-		if ($secret === '' || !hash_equals($secret, $header)) {
-			return response('Forbidden', 403);
-		}
-
-		/** @var array<string, mixed> $update */
-		$update = (array) $request->all();
-
-		$bot->handleUpdate($update);
-
-		return response('OK', 200);
-	}
-}
-```
-
----
-
-# Шаг 9. Быстро добавить себя как админа (чтобы не “deny by default”)
-
-Сделаем команду.
-
-## `app/Console/Commands/AccessHubUserAddCommand.php`
-
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace App\Console\Commands;
-
-use App\Enums\TelegramUserRole;
-use App\Models\TelegramUser;
-use Illuminate\Console\Command;
-
-final class AccessHubUserAddCommand extends Command
-{
-	protected $signature = 'accesshub:user:add {telegram_id} {role=operator}';
-	protected $description = 'Add or update telegram user for AccessHub (admin/operator).';
-
-	public function handle(): int
-	{
-		$telegramId = (string) $this->argument('telegram_id');
-		$role = (string) $this->argument('role');
-
-		$roleEnum = TelegramUserRole::tryFrom($role);
-		if ($roleEnum === null) {
-			$this->error('Role must be: admin or operator.');
-			return self::FAILURE;
-		}
-
-		TelegramUser::query()->updateOrCreate(
-			['telegram_id' => $telegramId],
-			['role' => $roleEnum, 'is_active' => true]
-		);
-
-		$this->info("OK: {$telegramId} -> {$roleEnum->value}");
-
-		return self::SUCCESS;
-	}
-}
-```
-
-Запусти:
-
-```bash
-php artisan accesshub:user:add <твой_telegram_id> admin
-```
-
----
-
-# Шаг 10. Тест — добавь 1-2 аккаунта через tinker
-
-```bash
-php artisan tinker
-```
-
-```php
-\App\Models\Account::create([
-	'platform' => 'Xbox X',
-	'game' => 'Minecraft',
-	'game_login' => 'test_login_1',
-	'game_password' => 'test_pass_1',
-	'max_uses' => 3,
-	'available_uses' => 3,
-	'is_active' => true,
-]);
-
-\App\Models\Account::create([
-	'platform' => 'Xbox X',
-	'game' => 'Minecraft',
-	'game_login' => 'test_login_2',
-	'game_password' => 'test_pass_2',
-	'max_uses' => 3,
-	'available_uses' => 3,
-	'is_active' => true,
-]);
-```
-
-После этого в Telegram напиши:
-
-```
-2446303
-Minecraft (Xbox X) x2
-```
-
-Должно выдать **2 разных** логина/пароля и записать 2 строки в `issuance_logs`.
+1. В Telegram `/help` — должен показать список команд.
+2. `/add` — должен запустить мастер.
+3. `/abort` — отменяет мастер.
+4. `/import` — подсказывает формат.
+5. Отправь TXT-файл документом с 2–3 строками импорта — должен добавить.
+6. Сделай выдачу оператором → `/log <id>` должен показывать записи.
 
