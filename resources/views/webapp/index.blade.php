@@ -292,13 +292,23 @@
 			margin-bottom: 8px;
 		}
 
+		.history-card:last-of-type {
+			margin-bottom: 0;
+		}
+
 		.history-card-line {
 			margin-bottom: 4px;
 			font-size: 13px;
+			line-height: 1.4;
 		}
 
 		.history-card-line:last-child {
 			margin-bottom: 0;
+		}
+
+		.history-card-line strong {
+			color: var(--ah-hint);
+			font-weight: 600;
 		}
 
 		.history-meta {
@@ -843,42 +853,117 @@
 					return;
 				}
 
-				// For other arrays, render as table
-				const table = document.createElement('table');
-				table.className = 'table table-sm table-striped';
-
-				const thead = document.createElement('thead');
-				const trh = document.createElement('tr');
-
+				// For other arrays, render as cards (universal card rendering)
 				const cols = Object.keys(first);
-
-				for (const c of cols) {
-					const th = document.createElement('th');
-					th.textContent = c;
-					trh.appendChild(th);
-				}
-
-				thead.appendChild(trh);
-				table.appendChild(thead);
-
-				const tbody = document.createElement('tbody');
+				
 				for (const row of data.items) {
-					const tr = document.createElement('tr');
-					for (const c of cols) {
-						const td = document.createElement('td');
-						td.textContent = (row[c] === null || row[c] === undefined) ? '' : String(row[c]);
-						tr.appendChild(td);
+					const card = document.createElement('div');
+					card.className = 'history-card';
+
+					for (const col of cols) {
+						const value = row[col];
+						if (value === null || value === undefined) continue;
+
+						const line = document.createElement('div');
+						line.className = 'history-card-line';
+						
+						// Format column name (snake_case to Title Case)
+						const label = col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+						
+						// Format value based on type
+						let displayValue = String(value);
+						if (typeof value === 'object' && value !== null) {
+							displayValue = JSON.stringify(value);
+						} else if (col.includes('date') || col.includes('at') || col.includes('_at')) {
+							// Try to format as date
+							try {
+								const date = new Date(value);
+								if (!isNaN(date.getTime())) {
+									displayValue = date.toLocaleString('ru-RU');
+								}
+							} catch (e) {
+								// Keep original value
+							}
+						}
+						
+						line.innerHTML = '<strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(displayValue);
+						card.appendChild(line);
 					}
-					tbody.appendChild(tr);
+
+					root.appendChild(card);
 				}
-				table.appendChild(tbody);
 
-				root.appendChild(table);
+				// Pagination UI (if endpoint provided and pagination data available)
+				if (endpoint && (data.page !== undefined || data.total !== undefined)) {
+					const page = data.page || 1;
+					const perPage = data.per_page || 20;
+					const total = data.total || 0;
+					const totalPages = Math.ceil(total / perPage);
 
-				const meta = document.createElement('div');
-				meta.className = 'history-meta';
-				meta.textContent = `page=${data.page ?? '-'} per_page=${data.per_page ?? '-'} total=${data.total ?? '-'}`;
-				root.appendChild(meta);
+					if (totalPages > 1) {
+						const pagination = document.createElement('div');
+						pagination.className = 'history-pagination';
+
+						const info = document.createElement('div');
+						info.className = 'history-pagination-info';
+						info.textContent = `Стр. ${page} из ${totalPages}`;
+						pagination.appendChild(info);
+
+						const buttons = document.createElement('div');
+						buttons.className = 'history-pagination-buttons';
+
+						const prevBtn = document.createElement('button');
+						prevBtn.className = 'history-pagination-btn';
+						prevBtn.textContent = '←';
+						prevBtn.disabled = page <= 1;
+						prevBtn.addEventListener('click', async () => {
+							if (page > 1) {
+								const params = { ...(baseParams || {}), page: page - 1, per_page: perPage };
+								const query = buildQuery(params);
+								const url = query ? (endpoint + '?' + query) : endpoint;
+								try {
+									const resp = await apiGet(url);
+									root.innerHTML = '';
+									renderApiResult(resp, root, endpoint, params);
+								} catch (err) {
+									showAlert('danger', err.message || 'Error');
+								}
+							}
+						});
+						buttons.appendChild(prevBtn);
+
+						const nextBtn = document.createElement('button');
+						nextBtn.className = 'history-pagination-btn';
+						nextBtn.textContent = '→';
+						nextBtn.disabled = page >= totalPages;
+						nextBtn.addEventListener('click', async () => {
+							if (page < totalPages) {
+								const params = { ...(baseParams || {}), page: page + 1, per_page: perPage };
+								const query = buildQuery(params);
+								const url = query ? (endpoint + '?' + query) : endpoint;
+								try {
+									const resp = await apiGet(url);
+									root.innerHTML = '';
+									renderApiResult(resp, root, endpoint, params);
+								} catch (err) {
+									showAlert('danger', err.message || 'Error');
+								}
+							}
+						});
+						buttons.appendChild(nextBtn);
+
+						pagination.appendChild(buttons);
+						root.appendChild(pagination);
+					}
+				}
+
+				// Meta info
+				if (data.page !== undefined || data.total !== undefined) {
+					const meta = document.createElement('div');
+					meta.className = 'history-meta';
+					meta.textContent = `page=${data.page ?? '-'} per_page=${data.per_page ?? '-'} total=${data.total ?? '-'}`;
+					root.appendChild(meta);
+				}
 
 				return;
 			}

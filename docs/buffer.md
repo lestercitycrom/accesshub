@@ -1,73 +1,122 @@
-Скролл в смартфоне работает когда я свайпинг делаю. А вот в десктопной версии и колесико кручу и всякое остальное - не помогает
-----------------
-Понял. На десктопе **колёсико по умолчанию скроллит вертикаль**, а горизонтальный скролл в “rail” почти никогда не срабатывает без:
+# AccessHub — UI ТЗ (v11) Infinite History + Desktop Tabs Wheel Scroll
 
-* **Shift + колесо** (но это неочевидно пользователю),
-* или явного JS, который переводит wheel → horizontal scroll.
+Дата: **2025-12-15**  
+Файл работ: `resources/views/webapp/index.blade.php`  
+Backend API: **не менять** (используем текущие `page/per_page/total`).
 
-Надо сделать так: **если курсор над меню вкладок**, то прокрутка колёсиком должна скроллить **вправо/влево**.
+---
 
-## 1) Что добавить (JS, минимально и безопасно)
+## 1) Цель
 
-В `index.blade.php` после того, как `tabs-wrap` уже есть в DOM:
+1) Заменить постраничник истории на **infinite scroll** (лента), с безопасным fallback “Загрузить ещё”.  
+2) Исправить UX табов на Desktop: колёсико мыши **скроллит меню вкладок горизонтально**, не страницу.
+
+---
+
+## 2) История: infinite scroll (рекомендованный UX)
+
+### 2.1 Поведение
+- При открытии вкладки “История” загружается `page=1`.
+- При прокрутке вниз, когда пользователь дошёл до конца списка — автоматически подгружается следующая страница `page++`.
+- Данные **добавляются в конец** (append), без перерендера уже показанных карточек.
+- Когда `loadedCount >= total` — показывать “Конец списка”.
+- Если IntersectionObserver недоступен или произошла ошибка — показывать кнопку **“Загрузить ещё”**.
+
+### 2.2 Состояние в памяти (в JS)
+Держать в объекте состояния:
+- `historyPage` (int, старт 1)
+- `historyPerPage` (int)
+- `historyTotal` (int)
+- `historyLoading` (bool)
+- `historyDone` (bool)
+- `historySeenIds` (Set) — анти-дубликаты (по `log_id` или `(order_id,account_id,created_at)` fallback)
+
+### 2.3 Маркер конца списка
+В конце списка карточек добавить элемент:
+```html
+<div id="historySentinel"></div>
+```
+И наблюдать его через `IntersectionObserver`.
+
+### 2.4 UI элементы (обязательные)
+- `#historyList` — контейнер карточек
+- `#historyLoader` — индикатор загрузки
+- `#historyLoadMoreBtn` — кнопка “Загрузить ещё” (fallback)
+- `#historyEnd` — “Конец списка”
+
+---
+
+## 3) Tabs: wheel scroll на Desktop (критично для UX)
+
+### 3.1 Требование
+Когда курсор над зоной вкладок (`.tabs-rail`), колесо мыши должно:
+- скроллить `.tabs-wrap` по X,
+- **не скроллить страницу вниз**,
+- работать только если вкладки реально шире контейнера.
+
+### 3.2 JS (готовый код)
+Вызвать **после рендера табов**:
 
 ```js
-function enableHorizontalWheelScroll(container) {
-	if (!container) {
-		return;
-	}
+function enableTabsWheelScroll() {
+  const rail = document.querySelector('.tabs-rail');
+  const wrap = document.querySelector('.tabs-wrap');
+  if (!rail || !wrap) return;
 
-	container.addEventListener('wheel', (e) => {
-		const hasHorizontal = container.scrollWidth > container.clientWidth;
-		if (!hasHorizontal) {
-			return;
-		}
+  rail.addEventListener('wheel', (e) => {
+    const canScrollX = wrap.scrollWidth > wrap.clientWidth;
+    if (!canScrollX) return;
 
-		// Convert vertical wheel to horizontal scroll
-		if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-			e.preventDefault();
-			container.scrollLeft += e.deltaY;
-		}
-	}, { passive: false });
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+    e.preventDefault();
+    wrap.scrollLeft += e.deltaY;
+  }, { passive: false });
 }
 
-// Call after tabs are rendered
-enableHorizontalWheelScroll(document.querySelector('.tabs-wrap'));
+enableTabsWheelScroll();
 ```
 
-## 2) Что проверить в CSS (чтобы десктоп не “ломался”)
-
-У `.tabs-wrap` должно быть:
-
+CSS must-have:
 ```css
-.tabs-wrap{
-	overflow-x:auto;
-	overflow-y:hidden;
-}
+.tabs-rail { overflow:hidden; }
+.tabs-wrap { overflow-x:auto; overflow-y:hidden; }
 ```
 
-И у `.nav-tabs`:
+---
 
-```css
-.nav-tabs{
-	flex-wrap:nowrap;
-}
-```
+## 4) Реализация: шаги
 
-## 3) Как протестить
+### 4.1 История
+1) Удалить текущий постраничник UI (строка `page=... per_page=... total=...` и Prev/Next).
+2) Добавить блоки `historyList/Loader/LoadMoreBtn/End/Sentinel`.
+3) Реализовать:
+- `historyReset()` — очистить state + DOM при смене фильтра/вкладки
+- `historyFetchNext()` — запрос `?page=historyPage`, append карточки, обновить state
+- `historyAttachObserver()` — IntersectionObserver на sentinel
+4) В обработчике формы истории:
+- при submit: historyReset(); historyFetchNext()
 
-### Desktop
+---
 
-1. Открой WebApp в Telegram Desktop.
-2. Наведи мышь на верхние вкладки.
-3. Крути колёсико:
+## 5) Тестирование
 
-* должно двигать вкладки горизонтально.
+### 5.1 История infinite scroll
+- Открыть История → загрузка первой страницы.
+- Скроллить вниз → подгружается page 2 → карточки добавляются.
+- Дойти до конца → показывается “Конец списка”.
+- Ошибка → появляется “Загрузить ещё” (fallback).
 
-4. Уведи курсор вниз на контент:
+### 5.2 Desktop tabs wheel
+- Telegram Desktop: навести мышь на меню вкладок → крутить колесо:
+  - вкладки двигаются влево/вправо,
+  - страница не уезжает вниз.
+- Навести мышь на контент → колесо снова скроллит страницу.
 
-* колёсико снова должно скроллить страницу вертикально.
+---
 
-### Mobile
+## 6) Acceptance
 
-* Свайп по вкладкам остаётся как был.
+- История работает как лента: авто-подгрузка + кнопка “Загрузить ещё”.
+- Нет дублей карточек (Set).
+- Табы на Desktop скроллятся колёсиком, без прокрутки страницы.
