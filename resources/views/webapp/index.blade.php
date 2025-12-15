@@ -11,6 +11,7 @@
 	<style>
 		:root {
 			--ah-bg: #0F1722;
+			--ah-header: #28323A;
 			--ah-panel: #182232;
 			--ah-panel-2: #141C29;
 			--ah-border: rgba(255, 255, 255, .10);
@@ -18,8 +19,8 @@
 			--ah-text: #E6EDF3;
 			--ah-hint: rgba(230, 237, 243, .60);
 			--ah-placeholder: rgba(230, 237, 243, .45);
-			--ah-accent: #2F81F7;
-			--ah-accent-weak: rgba(47, 129, 247, .20);
+			--ah-accent: #2481C9;
+			--ah-accent-weak: rgba(36, 129, 201, .20);
 			--ah-code: rgba(0, 0, 0, .55);
 		}
 
@@ -30,62 +31,60 @@
 
 		.app-shell {
 			padding: 10px;
+			padding-bottom: 80px;
 		}
 
-		.header {
+		.meta-bar {
 			display: flex;
 			justify-content: space-between;
 			align-items: center;
-			gap: 10px;
-			margin-bottom: 10px;
-		}
-
-		.role-line {
+			gap: 12px;
 			color: var(--ah-hint);
 			font-size: 12px;
+			margin: 8px 0 10px;
 		}
 
-		.badge-soft {
-			background: var(--ah-panel);
-			border: 1px solid var(--ah-border);
-			color: var(--ah-text);
+		.meta-pill {
 			padding: 6px 10px;
-			border-radius: 999px;
-			font-size: 12px;
+			border: 1px solid var(--ah-border);
+			background: rgba(255, 255, 255, .03);
+			border-radius: 10px;
+			color: var(--ah-hint);
 		}
 
 		.tabs-wrap {
-			display: flex;
-			overflow-x: auto;
-			gap: 8px;
-			padding-bottom: 6px;
-			-webkit-overflow-scrolling: touch;
-			scrollbar-width: none;
 			position: relative;
+			overflow-x: auto;
+			-webkit-overflow-scrolling: touch;
+			padding: 0 18px 6px 8px;
+			scrollbar-width: none;
+		}
+
+		.tabs-wrap::-webkit-scrollbar {
+			display: none;
 		}
 
 		.tabs-wrap::before,
 		.tabs-wrap::after {
 			content: '';
 			position: sticky;
-			width: 20px;
-			height: 100%;
-			z-index: 1;
+			top: 0;
+			width: 18px;
+			height: 44px;
+			display: block;
 			pointer-events: none;
 		}
 
 		.tabs-wrap::before {
 			left: 0;
-			background: linear-gradient(to right, var(--ah-bg), transparent);
+			float: left;
+			background: linear-gradient(to right, var(--ah-bg), rgba(0, 0, 0, 0));
 		}
 
 		.tabs-wrap::after {
 			right: 0;
-			background: linear-gradient(to left, var(--ah-bg), transparent);
-		}
-
-		.tabs-wrap::-webkit-scrollbar {
-			display: none;
+			float: right;
+			background: linear-gradient(to left, var(--ah-bg), rgba(0, 0, 0, 0));
 		}
 
 		.nav-tabs {
@@ -95,10 +94,11 @@
 		}
 
 		.nav-tabs .nav-link {
+			flex: 0 0 auto;
 			border: 1px solid var(--ah-border);
 			background: rgba(255, 255, 255, .04);
 			color: var(--ah-text);
-			border-radius: 12px;
+			border-radius: 10px;
 			padding: 6px 10px;
 			font-size: 14px;
 			white-space: nowrap;
@@ -119,68 +119,78 @@
 		.card-panel {
 			background: var(--ah-panel);
 			border: 1px solid var(--ah-border);
-			border-radius: 16px;
+			border-radius: 12px;
 			padding: 12px;
 			margin-top: 10px;
-		}
-
-		.form-label {
-			display: none;
-		}
-
-		.form-control {
-			border-radius: 10px;
-			border: 1px solid var(--ah-border);
-			background: var(--ah-input);
-			color: var(--ah-text);
-			transition: border-color 0.2s, box-shadow 0.2s;
-		}
-
-		.form-control:focus {
-			background: var(--ah-input);
-			border-color: var(--ah-accent);
-			box-shadow: 0 0 0 3px var(--ah-accent-weak);
-			color: var(--ah-text);
-			outline: none;
-		}
-
-		.form-control::placeholder {
-			color: var(--ah-placeholder);
-		}
-
-		.btn {
-			border-radius: 10px;
 		}
 
 		.card-section {
 			background: var(--ah-panel-2);
 			border: 1px solid var(--ah-border);
-			border-radius: 12px;
-			padding: 10px;
+			border-radius: 10px;
+			padding: 12px;
 			margin-bottom: 8px;
 		}
 
+		.divider {
+			height: 1px;
+			background: var(--ah-border);
+			margin: 12px 0;
+			border: 0;
+		}
+
+		.form-label {
+			display: none !important;
+		}
+
+		.form-control {
+			border-radius: 8px !important;
+			border: 1px solid var(--ah-border) !important;
+			background: var(--ah-input) !important;
+			color: var(--ah-text) !important;
+			box-shadow: none !important;
+		}
+
+		.form-control::placeholder {
+			color: var(--ah-placeholder) !important;
+		}
+
+		.form-control:focus {
+			background: var(--ah-input) !important;
+			border-color: rgba(36, 129, 201, .55) !important;
+			box-shadow: 0 0 0 2px var(--ah-accent-weak) !important;
+			outline: none !important;
+		}
+
+		.form-control:focus::placeholder {
+			color: rgba(230, 237, 243, .30) !important;
+		}
+
+		.btn {
+			border-radius: 8px !important;
+		}
+
 		.tab-header {
-			display: flex;
-			align-items: flex-start;
-			margin-bottom: 16px;
+			text-align: center;
+			margin-bottom: 10px;
 		}
 
-		.tab-header-icon {
-			font-size: 24px;
-			margin-right: 8px;
+		.tab-header .tab-icon {
+			font-size: 20px;
 			line-height: 1;
+			margin-bottom: 6px;
 		}
 
-		.tab-header-title {
+		.tab-header .tab-title {
 			font-size: 18px;
-			font-weight: 600;
-			margin-bottom: 4px;
+			font-weight: 700;
+			margin: 0;
 		}
 
-		.tab-header-subtitle {
+		.tab-header .tab-subtitle {
 			color: var(--ah-hint);
-			font-size: 13px;
+			font-size: 12px;
+			margin-top: 4px;
 		}
 
 		.history-pagination {
@@ -227,11 +237,28 @@
 			background: linear-gradient(to top, var(--ah-panel) 70%, rgba(0, 0, 0, 0));
 		}
 
+		.footer-action {
+			position: fixed;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+			background: var(--ah-bg);
+			border-top: 1px solid var(--ah-border);
+			z-index: 100;
+		}
+
+		.footer-action .btn {
+			width: 100%;
+			padding: 12px 14px;
+			font-weight: 600;
+		}
+
 		pre.codebox {
 			white-space: pre-wrap;
 			word-break: break-word;
 			padding: 12px;
-			border-radius: 12px;
+			border-radius: 10px;
 			background: var(--ah-code);
 			border: 1px solid var(--ah-border);
 			margin: 0;
@@ -283,12 +310,9 @@
 </head>
 <body>
 <div class="app-shell">
-	<div class="header">
-		<div>
-			<div class="fw-semibold">AccessHub</div>
-			<div class="role-line" id="roleLine">Role: ...</div>
-		</div>
-		<div class="badge-soft" id="userBadge">TG: -</div>
+	<div class="meta-bar">
+		<div class="meta-left">Role: <span id="roleText">...</span></div>
+		<div class="meta-pill">TG: <span id="tgIdText">-</span></div>
 	</div>
 
 	<div id="alerts"></div>
@@ -298,6 +322,8 @@
 	</div>
 	<div class="tab-content" id="tabsContent"></div>
 </div>
+
+<div id="footerAction" class="footer-action d-none"></div>
 
 <script>
 	(function () {
@@ -312,19 +338,14 @@
 
 		// Set Telegram WebApp header colors
 		tg.setBackgroundColor('#0F1722');
-		tg.setHeaderColor('#0F1722');
-
-		// Optional: use accent color from Telegram themeParams
-		const tp = tg.themeParams || {};
-		if (tp.button_color) {
-			document.documentElement.style.setProperty('--ah-accent', tp.button_color);
-		}
+		tg.setHeaderColor('#28323A');
+		document.documentElement.style.setProperty('--ah-accent', '#2481C9');
 
 		const initData = tg.initData || '';
 		const user = tg.initDataUnsafe?.user;
 
 		if (user?.id) {
-			document.getElementById('userBadge').textContent = 'TG: ' + user.id;
+			document.getElementById('tgIdText').textContent = String(user.id).slice(-4);
 		}
 
 		const alerts = document.getElementById('alerts');
@@ -452,37 +473,38 @@
 			const panel = document.createElement('div');
 			panel.className = 'card-panel';
 
-			// Tab header with icon (if available)
+			// Tab header with icon (centered, BotFather-style)
 			if (tab.header) {
 				const header = document.createElement('div');
 				header.className = 'tab-header';
 
 				if (tab.header.icon) {
-					const icon = document.createElement('span');
-					icon.className = 'tab-header-icon';
+					const icon = document.createElement('div');
+					icon.className = 'tab-icon';
 					icon.textContent = tab.header.icon;
 					header.appendChild(icon);
 				}
 
-				const titleWrap = document.createElement('div');
 				const title = document.createElement('div');
-				title.className = 'tab-header-title';
+				title.className = 'tab-title';
 				title.textContent = tab.header.title || tab.title;
-				titleWrap.appendChild(title);
+				header.appendChild(title);
 
 				if (tab.header.subtitle) {
 					const subtitle = document.createElement('div');
-					subtitle.className = 'tab-header-subtitle';
+					subtitle.className = 'tab-subtitle';
 					subtitle.textContent = tab.header.subtitle;
-					titleWrap.appendChild(subtitle);
+					header.appendChild(subtitle);
 				}
 
-				header.appendChild(titleWrap);
 				panel.appendChild(header);
 			} else {
 				const title = document.createElement('div');
-				title.className = 'mb-2 fw-semibold';
-				title.textContent = tab.title;
+				title.className = 'tab-header';
+				const titleText = document.createElement('div');
+				titleText.className = 'tab-title';
+				titleText.textContent = tab.title;
+				title.appendChild(titleText);
 				panel.appendChild(title);
 			}
 
@@ -535,24 +557,50 @@
 				form.appendChild(col);
 			}
 
-			const actions = document.createElement('div');
-			actions.className = 'col-12 mt-2 d-flex gap-2 sticky-actions';
+			// Check if single-action form (BotFather-style footer)
+			const isSingleAction = tab.submit?.type === 'bot';
+			const footerAction = document.getElementById('footerAction');
 
-			const submitBtn = document.createElement('button');
-			submitBtn.type = 'submit';
-			submitBtn.className = 'btn btn-primary';
-			submitBtn.textContent = 'Отправить';
+			// Mark form for tab switching
+			form.dataset.singleAction = isSingleAction ? 'true' : 'false';
 
-			const resetBtn = document.createElement('button');
-			resetBtn.type = 'button';
-			resetBtn.className = 'btn btn-outline-secondary';
-			resetBtn.textContent = 'Очистить';
-			resetBtn.addEventListener('click', () => form.reset());
+			if (isSingleAction) {
+				// Single action: use footer
+				const isActive = root.closest('.tab-pane')?.classList.contains('active');
+				if (isActive) {
+					footerAction.classList.remove('d-none');
+					footerAction.innerHTML = '';
+					const footerBtn = document.createElement('button');
+					footerBtn.type = 'submit';
+					footerBtn.className = 'btn btn-primary';
+					footerBtn.textContent = 'Отправить';
+					footerAction.appendChild(footerBtn);
+					document.querySelector('.app-shell').style.paddingBottom = '80px';
+				}
+			} else {
+				// Multi-action: use sticky actions
+				footerAction.classList.add('d-none');
+				document.querySelector('.app-shell').style.paddingBottom = '10px';
 
-			actions.appendChild(submitBtn);
-			actions.appendChild(resetBtn);
+				const actions = document.createElement('div');
+				actions.className = 'col-12 mt-2 d-flex gap-2 sticky-actions';
 
-			form.appendChild(actions);
+				const submitBtn = document.createElement('button');
+				submitBtn.type = 'submit';
+				submitBtn.className = 'btn btn-primary';
+				submitBtn.textContent = 'Отправить';
+
+				const resetBtn = document.createElement('button');
+				resetBtn.type = 'button';
+				resetBtn.className = 'btn btn-outline-secondary';
+				resetBtn.textContent = 'Очистить';
+				resetBtn.addEventListener('click', () => form.reset());
+
+				actions.appendChild(submitBtn);
+				actions.appendChild(resetBtn);
+
+				form.appendChild(actions);
+			}
 
 			const resultBox = document.createElement('div');
 			resultBox.className = 'col-12 mt-3';
@@ -560,8 +608,9 @@
 
 			form.appendChild(resultBox);
 
-			form.addEventListener('submit', async (e) => {
-				e.preventDefault();
+			// Handle submit from both footer and form
+			const handleSubmit = async (e) => {
+				if (e) e.preventDefault();
 
 				const payload = {};
 				const fd = new FormData(form);
@@ -602,9 +651,21 @@
 
 					throw new Error('Unknown submit type');
 				} catch (err) {
-					resultBox.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message || 'Error')}</div>`;
+					if (resultBox) {
+						resultBox.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message || 'Error')}</div>`;
+					} else {
+						showAlert('danger', err.message || 'Error');
+					}
 				}
-			});
+			};
+
+			form.addEventListener('submit', handleSubmit);
+			if (isSingleAction && footerAction) {
+				const footerBtn = footerAction.querySelector('button');
+				if (footerBtn) {
+					footerBtn.addEventListener('click', handleSubmit);
+				}
+			}
 
 			root.appendChild(form);
 		}
@@ -813,7 +874,7 @@
 			try {
 				const schemaResp = await apiGet('/api/webapp/api/schema');
 
-				document.getElementById('roleLine').textContent = 'Role: ' + (schemaResp.data.role || '-');
+				document.getElementById('roleText').textContent = schemaResp.data.role || '-';
 
 				const tabs = schemaResp.data.tabs || [];
 
@@ -841,6 +902,26 @@
 					}
 
 					renderForm(tab, root);
+				});
+
+				// Handle tab switching for footer-action
+				const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
+				tabButtons.forEach(btn => {
+					btn.addEventListener('shown.bs.tab', (e) => {
+						const targetId = e.target.getAttribute('data-bs-target');
+						const pane = document.querySelector(targetId);
+						if (pane) {
+							const form = pane.querySelector('form');
+							const footerAction = document.getElementById('footerAction');
+							if (form && form.dataset.singleAction === 'true') {
+								footerAction?.classList.remove('d-none');
+								document.querySelector('.app-shell').style.paddingBottom = '80px';
+							} else {
+								footerAction?.classList.add('d-none');
+								document.querySelector('.app-shell').style.paddingBottom = '10px';
+							}
+						}
+					});
 				});
 
 				// Enable bootstrap tab behavior
