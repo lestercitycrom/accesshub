@@ -52,6 +52,12 @@ final class VerifyTelegramWebAppInitData
 
 		$telegramId = (string) $user['id'];
 
+		// Determine locale from Telegram user language_code
+		$languageCode = (string) ($user['language_code'] ?? '');
+		$locale = $this->mapLanguageCodeToLocale($languageCode);
+		app()->setLocale($locale);
+		$request->attributes->set('locale', $locale);
+
 		$request->attributes->set('telegram_id', $telegramId);
 
 		$denyByDefault = (bool) config('accesshub.deny_by_default', true);
@@ -83,6 +89,29 @@ final class VerifyTelegramWebAppInitData
 		}
 
 		return null;
+	}
+
+	private function mapLanguageCodeToLocale(string $languageCode): string
+	{
+		$supportedLocales = ['ru', 'uk', 'en'];
+		$defaultLocale = config('app.locale', 'en');
+
+		if ($languageCode === '') {
+			return $defaultLocale;
+		}
+
+		// Direct match
+		if (in_array($languageCode, $supportedLocales, true)) {
+			return $languageCode;
+		}
+
+		// Try first 2 characters (e.g., 'ru-RU' -> 'ru')
+		$lang2 = substr($languageCode, 0, 2);
+		if (in_array($lang2, $supportedLocales, true)) {
+			return $lang2;
+		}
+
+		return $defaultLocale;
 	}
 
 	private function jsonError(string $code, string $message, int $status): Response

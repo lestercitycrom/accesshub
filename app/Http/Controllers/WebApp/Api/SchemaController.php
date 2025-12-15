@@ -10,7 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 
-final class SchemaController extends Controller
+	final class SchemaController extends Controller
 {
 	use JsonResponds;
 
@@ -25,53 +25,65 @@ final class SchemaController extends Controller
 			'tabs' => [
 				[
 					'id' => 'issue',
-					'title' => 'Выдача',
+					'title' => __('webapp.tabs.issue.title'),
 					'roles' => ['operator', 'admin'],
-					'header' => ['icon' => '🎮', 'title' => 'Выдача', 'subtitle' => 'Получить аккаунт'],
+					'header' => [
+						'icon' => '🎮',
+						'title' => __('webapp.tabs.issue.header.title'),
+						'subtitle' => __('webapp.tabs.issue.header.subtitle'),
+					],
 					'submit' => ['type' => 'bot', 'action' => 'issue'],
 					'fields' => [
-						['name' => 'order_id', 'label' => 'Order ID', 'placeholder' => 'Order ID', 'type' => 'text', 'required' => true, 'pattern' => '^\\d+$'],
-						['name' => 'game', 'label' => 'Игра', 'placeholder' => 'Игра', 'type' => 'text', 'required' => true],
-						['name' => 'platform', 'label' => 'Платформа', 'placeholder' => 'Платформа', 'type' => 'text', 'required' => true],
-						['name' => 'qty', 'label' => 'Количество', 'placeholder' => 'Количество', 'type' => 'number', 'required' => false, 'min' => 1, 'max' => 20, 'default' => 1],
+						['name' => 'order_id', 'label' => __('webapp.tabs.issue.fields.order_id'), 'placeholder' => __('webapp.tabs.issue.fields.order_id'), 'type' => 'text', 'required' => true, 'pattern' => '^\\d+$'],
+						['name' => 'game', 'label' => __('webapp.tabs.issue.fields.game'), 'placeholder' => __('webapp.tabs.issue.fields.game'), 'type' => 'text', 'required' => true],
+						['name' => 'platform', 'label' => __('webapp.tabs.issue.fields.platform'), 'placeholder' => __('webapp.tabs.issue.fields.platform'), 'type' => 'text', 'required' => true],
+						['name' => 'qty', 'label' => __('webapp.tabs.issue.fields.qty'), 'placeholder' => __('webapp.tabs.issue.fields.qty'), 'type' => 'number', 'required' => false, 'min' => 1, 'max' => 20, 'default' => 1],
 					],
 				],
 				[
 					'id' => 'history',
-					'title' => 'История',
+					'title' => __('webapp.tabs.history.title'),
 					'roles' => ['operator', 'admin'],
-					'header' => ['icon' => '🧾', 'title' => 'История', 'subtitle' => 'Просмотр выдач'],
+					'header' => [
+						'icon' => '🧾',
+						'title' => __('webapp.tabs.history.header.title'),
+						'subtitle' => __('webapp.tabs.history.header.subtitle'),
+					],
 					'submit' => ['type' => 'api', 'endpoint' => '/api/webapp/api/history'],
 					'fields' => [
-						['name' => 'order_id', 'label' => 'Order ID', 'placeholder' => 'Order ID (опционально)', 'type' => 'text', 'required' => false],
+						['name' => 'order_id', 'label' => 'Order ID', 'placeholder' => __('webapp.tabs.history.fields.order_id'), 'type' => 'text', 'required' => false],
 					],
 				],
 				[
 					'id' => 'help',
-					'title' => 'Помощь',
+					'title' => __('webapp.tabs.help.title'),
 					'roles' => ['operator', 'admin'],
 					'type' => 'static',
-					'header' => ['icon' => 'ℹ️', 'title' => 'Помощь'],
-					'content' => "Формат выдачи:\n— Order ID\n— Игра (Платформа)\n\nWebApp отправляет данные боту, бот отвечает в чат.",
+					'header' => ['icon' => 'ℹ️', 'title' => __('webapp.tabs.help.header.title')],
+					'content' => __('webapp.tabs.help.content'),
 				],
 				[
 					'id' => 'admin_find',
-					'title' => 'Админ: Поиск',
+					'title' => __('webapp.tabs.admin_find.title'),
 					'roles' => ['admin'],
-					'header' => ['icon' => '🔎', 'title' => 'Поиск', 'subtitle' => 'Найти аккаунты'],
+					'header' => [
+						'icon' => '🔎',
+						'title' => __('webapp.tabs.admin_find.header.title'),
+						'subtitle' => __('webapp.tabs.admin_find.header.subtitle'),
+					],
 					'submit' => ['type' => 'api', 'endpoint' => '/api/webapp/api/admin/find'],
 					'fields' => [
-						['name' => 'game', 'label' => 'Игра', 'placeholder' => 'Игра (опционально)', 'type' => 'text', 'required' => false],
-						['name' => 'platform', 'label' => 'Платформа', 'placeholder' => 'Платформа (опционально)', 'type' => 'text', 'required' => false],
-						['name' => 'status', 'label' => 'Статус', 'placeholder' => 'Статус: available/cooldown/disabled', 'type' => 'text', 'required' => false],
+						['name' => 'game', 'label' => __('webapp.tabs.issue.fields.game'), 'placeholder' => __('webapp.tabs.admin_find.fields.game'), 'type' => 'text', 'required' => false],
+						['name' => 'platform', 'label' => __('webapp.tabs.issue.fields.platform'), 'placeholder' => __('webapp.tabs.admin_find.fields.platform'), 'type' => 'text', 'required' => false],
+						['name' => 'status', 'label' => __('webapp.tabs.admin_find.fields.status'), 'placeholder' => __('webapp.tabs.admin_find.fields.status'), 'type' => 'text', 'required' => false],
 					],
 				],
 				[
 					'id' => 'admin_export',
-					'title' => 'Админ: Экспорт',
+					'title' => __('webapp.tabs.admin_export.title'),
 					'roles' => ['admin'],
 					'type' => 'static',
-					'content' => "Ссылки:\n— /webapp/api/admin/export/accounts.csv\n— /webapp/api/admin/export/issuance_logs.csv",
+					'content' => __('webapp.tabs.admin_export.content'),
 				],
 			],
 		];
@@ -82,9 +94,33 @@ final class SchemaController extends Controller
 			return in_array($role, $roles, true);
 		}));
 
+		// Include translations for frontend
+		$translations = [
+			'submit' => __('webapp.ui.submit'),
+			'clear' => __('webapp.ui.clear'),
+			'result_placeholder' => __('webapp.ui.result_placeholder'),
+			'loading' => __('webapp.ui.loading'),
+			'load_more' => __('webapp.ui.load_more'),
+			'end_of_list' => __('webapp.ui.end_of_list'),
+			'total' => __('webapp.ui.total'),
+			'no_data' => __('webapp.ui.no_data'),
+			'page_of' => __('webapp.ui.page_of'),
+			'role' => __('webapp.ui.role'),
+			'tg_id' => __('webapp.ui.tg_id'),
+			'order' => __('webapp.ui.order'),
+			'account_id' => __('webapp.ui.account_id'),
+			'download_accounts' => __('webapp.ui.download_accounts'),
+			'download_logs' => __('webapp.ui.download_logs'),
+			'downloaded' => __('webapp.ui.downloaded'),
+			'no_access' => __('webapp.ui.no_access'),
+			'auth_error' => __('webapp.ui.auth_error'),
+		];
+
 		return $this->ok([
 			'role' => $role,
 			'tabs' => $tabs,
+			'locale' => app()->getLocale(),
+			'translations' => $translations,
 		]);
 	}
 }

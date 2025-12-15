@@ -371,8 +371,8 @@
 <body>
 <div class="app-shell">
 	<div class="meta-bar">
-		<div class="meta-left">Role: <span id="roleText">...</span></div>
-		<div class="meta-right">TG: <span id="tgIdText">-</span></div>
+		<div class="meta-left" id="roleLine">Role: <span id="roleText">...</span></div>
+		<div class="meta-right" id="tgIdLine">TG: <span id="tgIdText">-</span></div>
 	</div>
 
 	<div id="alerts"></div>
@@ -413,13 +413,22 @@
 		const initData = tg.initData || '';
 		const user = tg.initDataUnsafe?.user;
 
-		if (user?.id) {
-			document.getElementById('tgIdText').textContent = String(user.id).slice(-4);
-		}
+		// Update TG ID after translations are loaded (in init())
 
 		const alerts = document.getElementById('alerts');
 		const footerAction = document.getElementById('footerAction');
 		const copyright = document.getElementById('copyright');
+
+		// Translations storage
+		let translations = {};
+
+		function t(key, params = {}) {
+			let text = translations[key] || key;
+			for (const [k, v] of Object.entries(params)) {
+				text = text.replace(':' + k, v);
+			}
+			return text;
+		}
 
 		function updateCopyrightVisibility() {
 			const isFooterVisible = footerAction && !footerAction.classList.contains('d-none');
@@ -463,19 +472,19 @@
 
 			if (!resp.ok || !data) {
 				const message = data?.error?.message || 'API request failed';
-				if (resp.status === 403 || message === 'no access') {
-					throw new Error('Нет доступа. Обратитесь к администратору для добавления в систему.');
-				}
-				if (resp.status === 401) {
-					throw new Error('Ошибка авторизации. Перезагрузите WebApp.');
-				}
+					if (resp.status === 403 || message === 'no access') {
+						throw new Error(t('no_access'));
+					}
+					if (resp.status === 401) {
+						throw new Error(t('auth_error'));
+					}
 				throw new Error(message);
 			}
 
 			if (data.ok !== true) {
 				const message = data?.error?.message || 'API error';
 				if (data?.error?.code === 'FORBIDDEN' || message === 'no access') {
-					throw new Error('Нет доступа. Обратитесь к администратору для добавления в систему.');
+					throw new Error(t('no_access'));
 				}
 				throw new Error(message);
 			}
@@ -502,7 +511,7 @@
 					throw new Error('Нет доступа. Обратитесь к администратору.');
 				}
 				if (resp.status === 401) {
-					throw new Error('Ошибка авторизации. Перезагрузите WebApp.');
+					throw new Error(t('auth_error'));
 				}
 				throw new Error(message);
 			}
@@ -673,10 +682,10 @@
 				if (isActive) {
 					footerAction.classList.remove('d-none');
 					footerAction.innerHTML = '';
-					const footerBtn = document.createElement('button');
-					footerBtn.type = 'button'; // Prevent form submit - handle manually
-					footerBtn.className = 'btn btn-primary';
-					footerBtn.textContent = 'Отправить';
+				const footerBtn = document.createElement('button');
+				footerBtn.type = 'button'; // Prevent form submit - handle manually
+				footerBtn.className = 'btn btn-primary';
+				footerBtn.textContent = t('submit');
 					footerBtn.addEventListener('click', (e) => {
 						e.preventDefault();
 						e.stopPropagation();
@@ -698,16 +707,16 @@
 				const submitBtn = document.createElement('button');
 				submitBtn.type = 'submit';
 				submitBtn.className = 'btn btn-primary';
-				submitBtn.textContent = 'Отправить';
+				submitBtn.textContent = t('submit');
 
 				actions.appendChild(submitBtn);
 
 				// Show "Очистить" only if allow_clear is true
 				if (tab.allow_clear === true) {
-					const resetBtn = document.createElement('button');
-					resetBtn.type = 'button';
-					resetBtn.className = 'btn btn-outline-secondary';
-					resetBtn.textContent = 'Очистить';
+				const resetBtn = document.createElement('button');
+				resetBtn.type = 'button';
+				resetBtn.className = 'btn btn-outline-secondary';
+				resetBtn.textContent = t('clear');
 					resetBtn.addEventListener('click', () => form.reset());
 					actions.appendChild(resetBtn);
 				}
@@ -721,7 +730,7 @@
 			placeholderDiv.className = 'small';
 			placeholderDiv.style.color = 'rgba(230, 237, 243, .55)';
 			placeholderDiv.style.fontSize = '12px';
-			placeholderDiv.textContent = 'Результат появится здесь.';
+			placeholderDiv.textContent = t('result_placeholder');
 			resultBox.appendChild(placeholderDiv);
 
 			form.appendChild(resultBox);
@@ -784,13 +793,13 @@
 							loadMoreBtn.id = 'historyLoadMoreBtn';
 							loadMoreBtn.className = 'btn btn-outline-primary history-pagination-btn';
 							loadMoreBtn.style.display = 'none';
-							loadMoreBtn.textContent = 'Загрузить ещё';
+							loadMoreBtn.textContent = t('load_more');
 							resultBox.appendChild(loadMoreBtn);
 
 							const end = document.createElement('div');
 							end.id = 'historyEnd';
 							end.style.display = 'none';
-							end.textContent = 'Конец списка';
+							end.textContent = t('end_of_list');
 							resultBox.appendChild(end);
 
 							const sentinel = document.createElement('div');
@@ -864,7 +873,7 @@
 
 			const line1 = document.createElement('div');
 			line1.className = 'history-card-line';
-			const orderText = 'Order: ' + (row.order_id || '-');
+			const orderText = t('order', { id: row.order_id || '-' });
 			const dateText = row.issued_at ? new Date(row.issued_at).toLocaleString('ru-RU') : '';
 			line1.innerHTML = '<strong>' + escapeHtml(orderText) + '</strong>' + (dateText ? ' <span style="color: var(--ah-hint); font-size: 11px;">' + escapeHtml(dateText) + '</span>' : '');
 			card.appendChild(line1);
@@ -1145,7 +1154,7 @@
 						end.className = 'history-meta';
 						end.style.textAlign = 'center';
 						end.style.paddingTop = '12px';
-						end.textContent = `Всего: ${data.total}`;
+						end.textContent = t('total', { count: data.total });
 						root.appendChild(end);
 					}
 				} else if (data.items && data.items.length === 0) {
@@ -1195,11 +1204,11 @@
 			const btn1 = document.createElement('button');
 			btn1.type = 'button';
 			btn1.className = 'btn btn-outline-primary';
-			btn1.textContent = 'Скачать accounts.csv';
+			btn1.textContent = t('download_accounts');
 			btn1.addEventListener('click', async () => {
 				try {
 					await downloadCsv('/api/webapp/api/admin/export/accounts.csv', 'accounts.csv');
-					showAlert('success', 'accounts.csv скачан');
+					showAlert('success', t('downloaded', { file: 'accounts.csv' }));
 				} catch (e) {
 					showAlert('danger', e.message || 'export error');
 				}
@@ -1228,7 +1237,18 @@
 			try {
 				const schemaResp = await apiGet('/api/webapp/api/schema');
 
-				document.getElementById('roleText').textContent = schemaResp.data.role || '-';
+				// Store translations
+				translations = schemaResp.data.translations || {};
+
+				// Update role and TG ID with translations
+				const roleLine = t('role', { role: schemaResp.data.role || '-' });
+				document.getElementById('roleLine').innerHTML = roleLine.replace(':role', '<span id="roleText">' + (schemaResp.data.role || '-') + '</span>');
+
+				const user = tg.initDataUnsafe?.user;
+				if (user?.id) {
+					const tgIdLine = t('tg_id', { id: String(user.id).slice(-4) });
+					document.getElementById('tgIdLine').innerHTML = tgIdLine.replace(':id', '<span id="tgIdText">' + String(user.id).slice(-4) + '</span>');
+				}
 
 				const tabs = schemaResp.data.tabs || [];
 
@@ -1281,13 +1301,13 @@
 							loadMoreBtn.id = 'historyLoadMoreBtn';
 							loadMoreBtn.className = 'btn btn-outline-primary history-pagination-btn';
 							loadMoreBtn.style.display = 'none';
-							loadMoreBtn.textContent = 'Загрузить ещё';
+							loadMoreBtn.textContent = t('load_more');
 							resultBox.appendChild(loadMoreBtn);
 
 							const end = document.createElement('div');
 							end.id = 'historyEnd';
 							end.style.display = 'none';
-							end.textContent = 'Конец списка';
+							end.textContent = t('end_of_list');
 							resultBox.appendChild(end);
 
 							const sentinel = document.createElement('div');
@@ -1334,7 +1354,7 @@
 								const footerBtn = document.createElement('button');
 								footerBtn.type = 'button'; // Prevent form submit
 								footerBtn.className = 'btn btn-primary';
-								footerBtn.textContent = 'Отправить';
+								footerBtn.textContent = t('submit');
 								footerBtn.addEventListener('click', (e) => {
 									e.preventDefault();
 									e.stopPropagation();
