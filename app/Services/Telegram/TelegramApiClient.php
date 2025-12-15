@@ -33,4 +33,52 @@ final class TelegramApiClient
 			]);
 		}
 	}
+
+	public function getFilePath(string $fileId): ?string
+	{
+		$token = (string) config('services.telegram.token');
+		if ($token === '') {
+			return null;
+		}
+
+		$url = "https://api.telegram.org/bot{$token}/getFile";
+
+		try {
+			$response = Http::timeout(10)->get($url, [
+				'file_id' => $fileId,
+			]);
+
+			$data = $response->json();
+
+			$filePath = $data['result']['file_path'] ?? null;
+
+			return is_string($filePath) ? $filePath : null;
+		} catch (Throwable $e) {
+			Log::error('telegram.getFile_failed', ['error' => $e->getMessage()]);
+			return null;
+		}
+	}
+
+	public function downloadFile(string $filePath): ?string
+	{
+		$token = (string) config('services.telegram.token');
+		if ($token === '') {
+			return null;
+		}
+
+		$url = "https://api.telegram.org/file/bot{$token}/{$filePath}";
+
+		try {
+			$response = Http::timeout(20)->get($url);
+
+			if (!$response->successful()) {
+				return null;
+			}
+
+			return (string) $response->body();
+		} catch (Throwable $e) {
+			Log::error('telegram.downloadFile_failed', ['error' => $e->getMessage()]);
+			return null;
+		}
+	}
 }
