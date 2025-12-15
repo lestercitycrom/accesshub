@@ -10,18 +10,19 @@
 
 	<style>
 		:root {
-			--tg-bg: #ffffff;
-			--tg-text: #0f172a;
-			--tg-hint: rgba(15, 23, 42, .55);
-			--tg-card: rgba(0, 0, 0, .04);
-			--tg-border: rgba(0, 0, 0, .10);
-			--tg-accent: #1677ff;
+			--ah-bg: #0F1722;
+			--ah-panel: #182232;
+			--ah-border: rgba(255, 255, 255, .10);
+			--ah-input: rgba(255, 255, 255, .06);
+			--ah-text: #E6EDF3;
+			--ah-hint: rgba(230, 237, 243, .60);
+			--ah-accent: #2F81F7;
+			--ah-code: rgba(0, 0, 0, .55);
 		}
 
-		/* Dark-mode friendly baseline */
-		body {
-			background: var(--tg-bg) !important;
-			color: var(--tg-text) !important;
+		html, body {
+			background: var(--ah-bg) !important;
+			color: var(--ah-text) !important;
 		}
 
 		.app-shell {
@@ -36,39 +37,52 @@
 			margin-bottom: 10px;
 		}
 
+		.role-line {
+			color: var(--ah-hint);
+			font-size: 12px;
+		}
+
 		.badge-soft {
-			background: var(--tg-card);
-			border: 1px solid var(--tg-border);
-			color: var(--tg-text);
+			background: var(--ah-panel);
+			border: 1px solid var(--ah-border);
+			color: var(--ah-text);
 			padding: 6px 10px;
 			border-radius: 999px;
 			font-size: 12px;
 		}
 
-		.role-line {
-			color: var(--tg-hint);
-			font-size: 12px;
+		.tabs-wrap {
+			display: flex;
+			overflow-x: auto;
+			gap: 8px;
+			padding-bottom: 6px;
+			-webkit-overflow-scrolling: touch;
+			scrollbar-width: none;
 		}
 
-		/* Tabs: make them look like Telegram pills */
+		.tabs-wrap::-webkit-scrollbar {
+			display: none;
+		}
+
 		.nav-tabs {
-			border-bottom: 0;
-			gap: 6px;
-			flex-wrap: wrap;
+			border: 0;
+			flex-wrap: nowrap;
+			gap: 8px;
 		}
 
 		.nav-tabs .nav-link {
-			border: 1px solid var(--tg-border);
-			background: var(--tg-card);
-			color: var(--tg-text);
+			border: 1px solid var(--ah-border);
+			background: rgba(255, 255, 255, .04);
+			color: var(--ah-text);
 			border-radius: 999px;
 			padding: 6px 10px;
 			font-size: 14px;
+			white-space: nowrap;
 		}
 
 		.nav-tabs .nav-link.active {
-			background: var(--tg-accent);
-			border-color: var(--tg-accent);
+			background: var(--ah-accent);
+			border-color: var(--ah-accent);
 			color: #fff;
 		}
 
@@ -79,27 +93,39 @@
 		}
 
 		.card-panel {
-			background: var(--tg-card);
-			border: 1px solid var(--tg-border);
-			border-radius: 14px;
+			background: var(--ah-panel);
+			border: 1px solid var(--ah-border);
+			border-radius: 16px;
 			padding: 12px;
 			margin-top: 10px;
 		}
 
 		.form-label {
+			color: var(--ah-hint);
 			font-size: 12px;
-			color: var(--tg-hint);
 			margin-bottom: 4px;
 		}
 
 		.form-control {
 			border-radius: 12px;
-			border: 1px solid var(--tg-border);
-			background: rgba(0,0,0,.02);
+			border: 1px solid var(--ah-border);
+			background: var(--ah-input);
+			color: var(--ah-text);
+		}
+
+		.form-control::placeholder {
+			color: rgba(230, 237, 243, .45);
 		}
 
 		.btn {
 			border-radius: 12px;
+		}
+
+		.sticky-actions {
+			position: sticky;
+			bottom: 10px;
+			padding-top: 10px;
+			background: linear-gradient(to top, var(--ah-panel) 70%, rgba(0, 0, 0, 0));
 		}
 
 		pre.codebox {
@@ -107,11 +133,52 @@
 			word-break: break-word;
 			padding: 12px;
 			border-radius: 12px;
-			background: rgba(0,0,0,.08);
-			border: 1px solid var(--tg-border);
+			background: var(--ah-code);
+			border: 1px solid var(--ah-border);
 			margin: 0;
 			font-size: 13px;
 			line-height: 1.35;
+			color: var(--ah-text);
+		}
+
+		.history-card {
+			background: var(--ah-panel);
+			border: 1px solid var(--ah-border);
+			border-radius: 12px;
+			padding: 10px;
+			margin-bottom: 8px;
+		}
+
+		.history-card-line {
+			margin-bottom: 4px;
+			font-size: 13px;
+		}
+
+		.history-card-line:last-child {
+			margin-bottom: 0;
+		}
+
+		.history-meta {
+			color: var(--ah-hint);
+			font-size: 11px;
+			margin-top: 12px;
+		}
+
+		.table {
+			color: var(--ah-text);
+		}
+
+		.table thead th {
+			border-color: var(--ah-border);
+			color: var(--ah-hint);
+		}
+
+		.table tbody td {
+			border-color: var(--ah-border);
+		}
+
+		.table-striped > tbody > tr:nth-of-type(odd) > td {
+			background-color: rgba(255, 255, 255, .02);
 		}
 	</style>
 </head>
@@ -127,7 +194,9 @@
 
 	<div id="alerts"></div>
 
-	<ul class="nav nav-tabs" id="tabsNav"></ul>
+	<div class="tabs-wrap">
+		<ul class="nav nav-tabs" id="tabsNav"></ul>
+	</div>
 	<div class="tab-content" id="tabsContent"></div>
 </div>
 
@@ -142,27 +211,10 @@
 		tg.ready();
 		tg.expand();
 
-		// Apply Telegram theme params (dark/light)
+		// Optional: use accent color from Telegram themeParams
 		const tp = tg.themeParams || {};
-		const root = document.documentElement;
-
-		function setVar(name, val) {
-			if (val) root.style.setProperty(name, val);
-		}
-
-		// Telegram gives hex colors in themeParams
-		setVar('--tg-bg', tp.bg_color);
-		setVar('--tg-text', tp.text_color);
-		setVar('--tg-hint', tp.hint_color ? tp.hint_color + 'AA' : null);
-		setVar('--tg-accent', tp.button_color);
-
-		// Fallbacks for dark mode if Telegram doesn't provide enough
-		if (tg.colorScheme === 'dark') {
-			if (!tp.bg_color) setVar('--tg-bg', '#0b1220');
-			if (!tp.text_color) setVar('--tg-text', '#e5e7eb');
-			if (!tp.hint_color) setVar('--tg-hint', 'rgba(229,231,235,.65)');
-			setVar('--tg-card', 'rgba(255,255,255,.06)');
-			setVar('--tg-border', 'rgba(255,255,255,.12)');
+		if (tp.button_color) {
+			document.documentElement.style.setProperty('--ah-accent', tp.button_color);
 		}
 
 		const initData = tg.initData || '';
@@ -357,7 +409,7 @@
 			}
 
 			const actions = document.createElement('div');
-			actions.className = 'col-12 mt-2 d-flex gap-2';
+			actions.className = 'col-12 mt-2 d-flex gap-2 sticky-actions';
 
 			const submitBtn = document.createElement('button');
 			submitBtn.type = 'submit';
@@ -433,13 +485,51 @@
 		function renderApiResult(resp, root) {
 			const data = resp.data || {};
 			if (Array.isArray(data.items)) {
+				// Check if it's history (has order_id, game, platform, account_id)
+				const first = data.items[0] || {};
+				const isHistory = first.hasOwnProperty('order_id') && first.hasOwnProperty('game') && first.hasOwnProperty('platform') && first.hasOwnProperty('account_id');
+
+				if (isHistory) {
+					// Render as cards for history
+					for (const row of data.items) {
+						const card = document.createElement('div');
+						card.className = 'history-card';
+
+						const line1 = document.createElement('div');
+						line1.className = 'history-card-line';
+						const orderText = 'Order: ' + (row.order_id || '-');
+						const dateText = row.issued_at ? new Date(row.issued_at).toLocaleString('ru-RU') : '';
+						line1.innerHTML = '<strong>' + escapeHtml(orderText) + '</strong>' + (dateText ? ' <span style="color: var(--ah-hint); font-size: 11px;">' + escapeHtml(dateText) + '</span>' : '');
+						card.appendChild(line1);
+
+						const line2 = document.createElement('div');
+						line2.className = 'history-card-line';
+						line2.textContent = (row.game || '-') + ' (' + (row.platform || '-') + ')';
+						card.appendChild(line2);
+
+						const line3 = document.createElement('div');
+						line3.className = 'history-card-line';
+						line3.textContent = 'Account ID: ' + (row.account_id || '-');
+						card.appendChild(line3);
+
+						root.appendChild(card);
+					}
+
+					const meta = document.createElement('div');
+					meta.className = 'history-meta';
+					meta.textContent = `page=${data.page ?? '-'} per_page=${data.per_page ?? '-'} total=${data.total ?? '-'}`;
+					root.appendChild(meta);
+
+					return;
+				}
+
+				// For other arrays, render as table
 				const table = document.createElement('table');
 				table.className = 'table table-sm table-striped';
 
 				const thead = document.createElement('thead');
 				const trh = document.createElement('tr');
 
-				const first = data.items[0] || {};
 				const cols = Object.keys(first);
 
 				for (const c of cols) {
@@ -466,7 +556,7 @@
 				root.appendChild(table);
 
 				const meta = document.createElement('div');
-				meta.className = 'text-muted small';
+				meta.className = 'history-meta';
 				meta.textContent = `page=${data.page ?? '-'} per_page=${data.per_page ?? '-'} total=${data.total ?? '-'}`;
 				root.appendChild(meta);
 

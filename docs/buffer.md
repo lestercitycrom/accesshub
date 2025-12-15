@@ -1,247 +1,163 @@
-Да, вижу. Сейчас у тебя WebApp рисуется “как обычный сайт” (белый фон, табы Bootstrap), а на скринах из ТЗ — ощущение “внутренней тёмной панели” + “чёрные блоки” под ответы. Это решается **двумя вещами**:
+# AccessHub — ТЗ на доработку интерфейса WebApp (v7, BotFather-style + Refactor)
 
-1. **тема/цвета под Telegram (dark/light)**
-2. **переразметка табов и формы под mobile + меньше “воздуха”**
+Дата: **2025-12-15**  
+Стек: **Laravel 12 + PHP 8.3 + MySQL + Bootstrap 5 + Telegram WebApp**
 
-Ниже — конкретный патч для `resources/views/webapp/index.blade.php` (без теории).
+## 1. Цель
 
----
+Сделать WebApp визуально максимально близким к BotFather (тёмная модалка, аккуратные отступы, “карточные” секции, placeholder вместо label) и довести UX:
 
-# 1) Сделаем внешний вид “как в Telegram” (тёмный + компактный)
+- **Always Dark** (не зависит от темы Telegram)
+- верхнее меню вкладок без вылезаний/переносов (гор. скролл или альтернативный современный вариант)
+- “История” карточками + полноценная пагинация UI
+- формы: placeholder, корректный focus, одинаковая геометрия
+- “шапка” WebApp: попытаться приблизить к BotFather через `setHeaderColor/setBackgroundColor`
+- рекомендации по **рефакторингу** (без фанатизма) чтобы код был понятен и переиспользуем
 
-## 1.1 Добавь CSS (заменить `<style>...</style>` целиком)
+## 2. Область работ
 
-```html
-<style>
-	:root {
-		--tg-bg: #ffffff;
-		--tg-text: #0f172a;
-		--tg-hint: rgba(15, 23, 42, .55);
-		--tg-card: rgba(0, 0, 0, .04);
-		--tg-border: rgba(0, 0, 0, .10);
-		--tg-accent: #1677ff;
-	}
+Основной файл: `resources/views/webapp/index.blade.php`  
+Backend API не меняем.
 
-	/* Dark-mode friendly baseline */
-	body {
-		background: var(--tg-bg) !important;
-		color: var(--tg-text) !important;
-	}
+## 3. Дизайн (BotFather-style)
 
-	.app-shell {
-		padding: 10px;
-	}
+### 3.1 Always Dark palette (фиксированная)
+Использовать как базу:
 
-	.header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 10px;
-		margin-bottom: 10px;
-	}
+- `--ah-bg: #0F1722`
+- `--ah-panel: #182232`
+- `--ah-panel-2: #141C29` (второй тон для секций/групп)
+- `--ah-border: rgba(255,255,255,.10)`
+- `--ah-input: rgba(255,255,255,.06)`
+- `--ah-text: #E6EDF3`
+- `--ah-hint: rgba(230,237,243,.60)`
+- `--ah-placeholder: rgba(230,237,243,.45)`
+- `--ah-accent: #2F81F7`
+- `--ah-accent-weak: rgba(47,129,247,.20)`
+- `--ah-code: rgba(0,0,0,.55)`
 
-	.badge-soft {
-		background: var(--tg-card);
-		border: 1px solid var(--tg-border);
-		color: var(--tg-text);
-		padding: 6px 10px;
-		border-radius: 999px;
-		font-size: 12px;
-	}
-
-	.role-line {
-		color: var(--tg-hint);
-		font-size: 12px;
-	}
-
-	/* Tabs: make them look like Telegram pills */
-	.nav-tabs {
-		border-bottom: 0;
-		gap: 6px;
-		flex-wrap: wrap;
-	}
-
-	.nav-tabs .nav-link {
-		border: 1px solid var(--tg-border);
-		background: var(--tg-card);
-		color: var(--tg-text);
-		border-radius: 999px;
-		padding: 6px 10px;
-		font-size: 14px;
-	}
-
-	.nav-tabs .nav-link.active {
-		background: var(--tg-accent);
-		border-color: var(--tg-accent);
-		color: #fff;
-	}
-
-	.tab-content {
-		background: transparent !important;
-		border: 0 !important;
-		padding: 0 !important;
-	}
-
-	.card-panel {
-		background: var(--tg-card);
-		border: 1px solid var(--tg-border);
-		border-radius: 14px;
-		padding: 12px;
-		margin-top: 10px;
-	}
-
-	.form-label {
-		font-size: 12px;
-		color: var(--tg-hint);
-		margin-bottom: 4px;
-	}
-
-	.form-control {
-		border-radius: 12px;
-		border: 1px solid var(--tg-border);
-		background: rgba(0,0,0,.02);
-	}
-
-	.btn {
-		border-radius: 12px;
-	}
-
-	pre.codebox {
-		white-space: pre-wrap;
-		word-break: break-word;
-		padding: 12px;
-		border-radius: 12px;
-		background: rgba(0,0,0,.08);
-		border: 1px solid var(--tg-border);
-		margin: 0;
-		font-size: 13px;
-		line-height: 1.35;
-	}
-</style>
-```
-
----
-
-# 2) Подхватим Telegram themeParams (чтобы тёмная тема реально стала тёмной)
-
-В `<script>` в самом начале, после `tg.expand();` вставь:
-
+### 3.2 Telegram WebApp header colors (опционально)
+После `tg.ready()` установить:
 ```js
-// Apply Telegram theme params (dark/light)
-const tp = tg.themeParams || {};
-const root = document.documentElement;
+tg.setBackgroundColor('#0F1722');
+tg.setHeaderColor('#0F1722');
+```
+> Поведение зависит от клиента Telegram, но это единственный официальный способ приблизить верхнюю системную полосу.
 
-function setVar(name, val) {
-	if (val) root.style.setProperty(name, val);
-}
+### 3.3 Placeholder вместо label
+- В формах не показывать `.form-label`
+- Использовать placeholder (как у BotFather).
+- На focus фон инпута не меняется (остаётся тёмным), меняется только обводка/подсветка.
 
-// Telegram gives hex colors in themeParams
-setVar('--tg-bg', tp.bg_color);
-setVar('--tg-text', tp.text_color);
-setVar('--tg-hint', tp.hint_color ? tp.hint_color + 'AA' : null);
-setVar('--tg-accent', tp.button_color);
+### 3.4 Геометрия (скругления)
+- Инпуты и кнопки: radius **10px**
+- Табы: radius **12px**
+- Панели: radius **16px**
 
-// Fallbacks for dark mode if Telegram doesn't provide enough
-if (tg.colorScheme === 'dark') {
-	if (!tp.bg_color) setVar('--tg-bg', '#0b1220');
-	if (!tp.text_color) setVar('--tg-text', '#e5e7eb');
-	if (!tp.hint_color) setVar('--tg-hint', 'rgba(229,231,235,.65)');
-	setVar('--tg-card', 'rgba(255,255,255,.06)');
-	setVar('--tg-border', 'rgba(255,255,255,.12)');
-}
+### 3.5 Заголовки вкладок как “страницы”
+Как в BotFather: иконка + заголовок + короткое описание (опционально) над формой.
+
+Данные брать из schema (`tab.header`):
+```json
+"header": { "icon": "🧾", "title": "История", "subtitle": "Просмотр выдач" }
 ```
 
----
+## 4. Навигация вкладок (современно)
 
-# 3) Уберём “контейнер” Bootstrap и лишние рамки — сделаем компактный layout
+### Вариант A (рекомендуемый): Bottom navigation
+Если вкладок много/длинные названия — лучше нижняя навигация (как приложение).
+- 4–5 основных пунктов (Выдача, История, Помощь, Админ)
+- админские подпункты внутри вкладки “Админ” (Search/Export/Users/…).
 
-В body замени текущий контейнер:
+> Если уже реализованы top tabs и они устраивают — допускается оставить **top tabs**, но обязательно:
+- без переносов,
+- horizontal scroll,
+- градиентные “fade edges” по краям.
 
-### Было:
+## 5. История: карточки + UI-пагинация
 
-```html
-<div class="container py-3">
-...
-</div>
-```
+### 5.1 Рендер карточек
+Оставить карточный формат (как сейчас).
 
-### Стало:
+### 5.2 Управление страницами
+Добавить UI:
+- `←` (Prev), если page > 1
+- `→` (Next), если page * per_page < total
+- “Стр. X из Y” (Y = ceil(total / per_page)).
 
-```html
-<div class="app-shell">
-	<div class="header">
-		<div>
-			<div class="fw-semibold">AccessHub</div>
-			<div class="role-line" id="roleLine">Role: ...</div>
-		</div>
-		<div class="badge-soft" id="userBadge">TG: -</div>
-	</div>
+При клике — повторить запрос с `?page=N`.
 
-	<div id="alerts"></div>
+## 6. Формы: поведение как у BotFather
 
-	<ul class="nav nav-tabs" id="tabsNav"></ul>
-	<div class="tab-content" id="tabsContent"></div>
-</div>
-```
+### 6.1 Placeholder вместо label (обязательно)
+В `renderForm()`:
+- label не добавлять (или скрыть CSS)
+- `input.placeholder = f.placeholder ?? f.label ?? f.name`
 
----
+### 6.2 Focus без “белого фона”
+CSS:
+- `.form-control` и `.form-control:focus` имеют одинаковый background (`--ah-input`)
+- подсветка через border + box-shadow (`--ah-accent-weak`)
 
-# 4) Каждый таб пусть рисуется как “панель” (как на скринах)
+### 6.3 Кнопки менее округлые
+- `.btn` radius 10px
 
-В JS функцию `createTabPane()` измени так, чтобы `body` был внутри `.card-panel`.
+## 7. Конкретные правки (чеклист)
 
-### Замени `createTabPane()` целиком:
+### 7.1 CSS (в `<style>`)
+- внедрить палитру из п.3.1
+- `.card-panel` + optional `.card-section` (panel-2)
+- `.form-label{display:none}`
+- `.form-control` focus rules + placeholder colors
+- `.btn` радиусы
+- навигация: top tabs (tabs-wrap + fade edges) или bottom nav
 
-```js
-function createTabPane(tab, isActive) {
-	const pane = document.createElement('div');
-	pane.className = 'tab-pane fade' + (isActive ? ' show active' : '');
-	pane.id = 'tab_' + tab.id;
+### 7.2 JS
+- после `tg.ready()`:
+  - `tg.setBackgroundColor(...)`
+  - `tg.setHeaderColor(...)`
+- `renderTabHeader()` (icon/title/subtitle)
+- `history pagination` (Prev/Next) и запросы `?page=N`
 
-	const panel = document.createElement('div');
-	panel.className = 'card-panel';
+## 8. Рефакторинг (умеренно, обязательно)
 
-	const title = document.createElement('div');
-	title.className = 'mb-2 fw-semibold';
-	title.textContent = tab.title;
+Цель: сохранить работоспособность, но сделать код читаемым и пригодным для повторного использования.
 
-	panel.appendChild(title);
+### 8.1 Структура JS (внутри одного файла)
+В `index.blade.php` оставить один `<script>`, но разделить на блоки:
 
-	const body = document.createElement('div');
-	body.id = 'body_' + tab.id;
-	panel.appendChild(body);
+- `tgInit()` — init/цвета/заголовок
+- `apiClient` — `apiGet/apiPost/downloadCsv`
+- `schemaRenderer` — создание табов/панелей/хедера
+- `formRenderer` — renderForm, serialize (минимум)
+- `historyRenderer` — карточки + пагинация
+- `utils` — escapeHtml, buildQuery
 
-	pane.appendChild(panel);
-	return pane;
-}
-```
+### 8.2 Единый формат API
+UI опирается только на:
+- `ok`, `data`, `error.message`, `error.fields` (если есть)
 
----
+### 8.3 Минимизация “магических строк”
+- tab ids и action strings вынести в константы JS.
+- цвета только через CSS vars.
 
-# 5) Почему “не как на скринах” ещё?
+### 8.4 Ограниченное переиспользование
+- Можно вынести палитру/базовые классы в `resources/views/webapp/_theme.blade.php`.
+- Можно вынести JS в `resources/js/webapp.js` (если Vite уже используется).
+- Не добавлять сложную сборку, если сейчас всё работает в одном blade.
 
-На скринах ключевой элемент — **“чёрный блок результата”** как у сообщений Telegram (` ``` `).
-В WebApp мы уже сделали `pre.codebox` — он будет выглядеть похоже (особенно в dark theme).
-Но **идеально** “как в чате” будет именно ответ бота в чат (что у тебя уже есть).
+## 9. Критерии приёмки
 
----
+1) WebApp всегда тёмный (в Telegram светлая/тёмная — не важно).
+2) Поля: placeholder, нет label; focus без смены фона.
+3) Кнопки менее округлые (10px), табы 12px.
+4) История: карточки + рабочие кнопки Prev/Next.
+5) Шапка WebApp: `setHeaderColor/setBackgroundColor` применены.
+6) Код структурирован (см. 8), без регресса.
 
-# Как это протестить (быстро)
+## 10. Регресс-тест
 
-1. Пересобери/обнови страницу `/webapp` (Ctrl+F5 на десктопе, либо заново открыть WebApp в Telegram).
-2. Переключи Telegram на тёмную тему → WebApp должен стать тёмным.
-3. Проверь:
-
-   * табы стали “пилюлями”
-   * форма компактная
-   * панели без белых блоков и лишних рамок
-4. Нажми “Выдача” → убедись, что по submit WebApp закрывается и бот отвечает в чат.
-
----
-
-Если хочешь, я следующим шагом дам **ещё более “телеграмный” UI**:
-
-* sticky нижняя кнопка “Отправить” как в Telegram,
-* автоподстановка `qty=1`,
-* поля в одну колонку без лишних отступов,
-* “История” с красивыми карточками вместо таблицы (в мобильном это лучше).
+1) Telegram в светлой теме → открыть WebApp → UI тёмный.
+2) Выдача: заполнить → Отправить → WebApp закрывается → бот отвечает в чат.
+3) История: пролистать Prev/Next (page меняется, данные новые).
+4) Экспорт: скачать CSV.
