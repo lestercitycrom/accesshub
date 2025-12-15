@@ -13,6 +13,7 @@ use App\Services\AccessHub\Admin\LogsService;
 use App\Services\AccessHub\Operator\OperatorHistoryService;
 use App\Services\Telegram\TelegramApiClient;
 use App\Services\Telegram\TelegramKeyboardFactory;
+use App\Services\Telegram\TelegramMarkdown;
 use App\Services\Telegram\TelegramUpdateParser;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -44,7 +45,8 @@ final class AccessHubBotService
 		private readonly LogsService $logs,
 		private readonly OperatorHistoryService $operatorHistory,
 		private readonly AdminStatsService $adminStats,
-		private readonly TelegramKeyboardFactory $kb
+		private readonly TelegramKeyboardFactory $kb,
+		private readonly TelegramMarkdown $md
 	) {
 	}
 
@@ -71,6 +73,13 @@ final class AccessHubBotService
 		$chatId = $chat['id'];
 		$telegramId = (string) $from['id'];
 		$text = (string) ($message['text'] ?? '');
+
+		// WebApp: tg.sendData()
+		$webAppData = $message['web_app_data']['data'] ?? null;
+		if (is_string($webAppData) && trim($webAppData) !== '') {
+			$this->handleWebAppData($chatId, $telegramId, $webAppData);
+			return;
+		}
 
 		if ($text === '' && !isset($message['document'])) {
 			return;
@@ -408,6 +417,68 @@ final class AccessHubBotService
 		}
 
 		return trim(implode("\n", $lines));
+	}
+
+	/**
+	 * Handle Telegram WebApp payload (message.web_app_data.data).
+	 */
+	private function handleWebAppData(int|string $chatId, string $telegramId, string $raw): void
+	{
+		$data = json_decode($raw, true);
+
+		if (!is_array($data)) {
+			$this->telegram->sendMessage($chatId, 'WebApp: неверный формат данных.');
+			return;
+		}
+
+		$action = $data['action'] ?? null;
+		$payload = $data['payload'] ?? null;
+
+		if (!is_string($action) || !is_array($payload)) {
+			$this->telegram->sendMessage($chatId, 'WebApp: отсутствуют обязательные поля.');
+			return;
+		}
+
+		if ($action !== 'issue') {
+			$this->telegram->sendMessage($chatId, 'WebApp: неизвестное действие.');
+			return;
+		}
+
+		$orderId = isset($payload['order_id']) ? trim((string) $payload['order_id']) : '';
+		$game = isset($payload['game']) ? trim((string) $payload['game']) : '';
+		$platform = isset($payload['platform']) ? trim((string) $payload['platform']) : '';
+		$qty = (int) ($payload['qty'] ?? 1);
+
+		if ($orderId === '' || $game === '' || $platform === '') {
+			$this->telegram->sendMessage($chatId, 'WebApp: заполни order_id, game, platform.');
+			return;
+		}
+
+		if ($qty < 1) {
+			$qty = 1;
+		}
+
+		if ($qty > 20) {
+			$qty = 20;
+		}
+
+		try {
+			$items = $this->issuer->issue($orderId, $telegramId, $game, $platform, $qty);
+
+			// Reply as "black form" (code-block)
+			$text = $this->formatIssued($orderId, $game, $platform, $items);
+
+			$this->telegram->sendMessage(
+				$chatId,
+				$this->md->codeBlock($text),
+				null,
+				'MarkdownV2'
+			);
+		} catch (RuntimeException $e) {
+			$this->telegram->sendMessage($chatId, $e->getMessage());
+		} catch (Throwable) {
+			$this->telegram->sendMessage($chatId, 'Ошибка. Попробуй ещё раз.');
+		}
 	}
 
 	private function loadUser(string $telegramId): ?TelegramUser

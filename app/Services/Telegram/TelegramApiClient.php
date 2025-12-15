@@ -13,14 +13,20 @@ final class TelegramApiClient
 	/**
 	 * @param array<string, mixed>|null $replyMarkup
 	 */
-	public function sendMessage(int|string $chatId, string $text, ?array $replyMarkup = null): void
+	public function sendMessage(int|string $chatId, string $text, ?array $replyMarkup = null, ?string $parseMode = null): void
 	{
-		$this->post('sendMessage', [
+		$payload = [
 			'chat_id' => $chatId,
 			'text' => $this->sanitizeUtf8($text),
 			'disable_web_page_preview' => true,
 			'reply_markup' => $replyMarkup,
-		]);
+		];
+
+		if ($parseMode !== null) {
+			$payload['parse_mode'] = $parseMode;
+		}
+
+		$this->post('sendMessage', $payload);
 	}
 
 	/**

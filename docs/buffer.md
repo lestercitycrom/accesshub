@@ -1,138 +1,247 @@
-Такое **может быть**, и почти всегда причина одна из этих (по порядку вероятности):
+Да, вижу. Сейчас у тебя WebApp рисуется “как обычный сайт” (белый фон, табы Bootstrap), а на скринах из ТЗ — ощущение “внутренней тёмной панели” + “чёрные блоки” под ответы. Это решается **двумя вещами**:
 
-1. **Laravel пишет не в `laravel.log`, а в другой файл** (канал `daily`)
-2. **Логи уходят не в файл, а в консоль/STDERR** (канал `stderr`)
-3. **Уровень логирования слишком высокий** (`LOG_LEVEL=error`, поэтому `info/debug` не пишутся)
-4. Ты смотришь **не тот проект/не тот `storage/logs`** (две копии, другой `workdir`)
-5. **Нет прав на запись**, и Laravel “тихо” не пишет (реже, но бывает)
+1. **тема/цвета под Telegram (dark/light)**
+2. **переразметка табов и формы под mobile + меньше “воздуха”**
 
-Ниже — как за 2 минуты точно понять, куда пишет.
+Ниже — конкретный патч для `resources/views/webapp/index.blade.php` (без теории).
 
 ---
 
-## Шаг 1. Проверь, какой канал логов реально активен
+# 1) Сделаем внешний вид “как в Telegram” (тёмный + компактный)
 
-Открой `php artisan tinker` и выполни **внутри tinker**:
+## 1.1 Добавь CSS (заменить `<style>...</style>` целиком)
 
-```php
-config('logging.default');
-config('logging.channels.' . config('logging.default'));
-config('logging.channels.daily.path');
-config('logging.channels.single.path');
-config('logging.channels.stack.channels');
-config('app.env');
-config('logging.channels.' . config('logging.default') . '.level');
+```html
+<style>
+	:root {
+		--tg-bg: #ffffff;
+		--tg-text: #0f172a;
+		--tg-hint: rgba(15, 23, 42, .55);
+		--tg-card: rgba(0, 0, 0, .04);
+		--tg-border: rgba(0, 0, 0, .10);
+		--tg-accent: #1677ff;
+	}
+
+	/* Dark-mode friendly baseline */
+	body {
+		background: var(--tg-bg) !important;
+		color: var(--tg-text) !important;
+	}
+
+	.app-shell {
+		padding: 10px;
+	}
+
+	.header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 10px;
+	}
+
+	.badge-soft {
+		background: var(--tg-card);
+		border: 1px solid var(--tg-border);
+		color: var(--tg-text);
+		padding: 6px 10px;
+		border-radius: 999px;
+		font-size: 12px;
+	}
+
+	.role-line {
+		color: var(--tg-hint);
+		font-size: 12px;
+	}
+
+	/* Tabs: make them look like Telegram pills */
+	.nav-tabs {
+		border-bottom: 0;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+
+	.nav-tabs .nav-link {
+		border: 1px solid var(--tg-border);
+		background: var(--tg-card);
+		color: var(--tg-text);
+		border-radius: 999px;
+		padding: 6px 10px;
+		font-size: 14px;
+	}
+
+	.nav-tabs .nav-link.active {
+		background: var(--tg-accent);
+		border-color: var(--tg-accent);
+		color: #fff;
+	}
+
+	.tab-content {
+		background: transparent !important;
+		border: 0 !important;
+		padding: 0 !important;
+	}
+
+	.card-panel {
+		background: var(--tg-card);
+		border: 1px solid var(--tg-border);
+		border-radius: 14px;
+		padding: 12px;
+		margin-top: 10px;
+	}
+
+	.form-label {
+		font-size: 12px;
+		color: var(--tg-hint);
+		margin-bottom: 4px;
+	}
+
+	.form-control {
+		border-radius: 12px;
+		border: 1px solid var(--tg-border);
+		background: rgba(0,0,0,.02);
+	}
+
+	.btn {
+		border-radius: 12px;
+	}
+
+	pre.codebox {
+		white-space: pre-wrap;
+		word-break: break-word;
+		padding: 12px;
+		border-radius: 12px;
+		background: rgba(0,0,0,.08);
+		border: 1px solid var(--tg-border);
+		margin: 0;
+		font-size: 13px;
+		line-height: 1.35;
+	}
+</style>
 ```
-
-### Что это даст
-
-* увидишь **какой канал** (single/daily/stack/stderr)
-* если `daily` — путь будет на `storage/logs/laravel-YYYY-MM-DD.log`
-* если `stderr` — в файл **вообще ничего не будет** (будет в консоли процесса)
 
 ---
 
-## Шаг 2. Проверь, какие файлы логов реально создаются
+# 2) Подхватим Telegram themeParams (чтобы тёмная тема реально стала тёмной)
 
-В PowerShell в корне проекта:
+В `<script>` в самом начале, после `tg.expand();` вставь:
 
-```powershell
-Get-ChildItem .\storage\logs | Select-Object Name,Length,LastWriteTime | Sort-Object LastWriteTime -Descending
+```js
+// Apply Telegram theme params (dark/light)
+const tp = tg.themeParams || {};
+const root = document.documentElement;
+
+function setVar(name, val) {
+	if (val) root.style.setProperty(name, val);
+}
+
+// Telegram gives hex colors in themeParams
+setVar('--tg-bg', tp.bg_color);
+setVar('--tg-text', tp.text_color);
+setVar('--tg-hint', tp.hint_color ? tp.hint_color + 'AA' : null);
+setVar('--tg-accent', tp.button_color);
+
+// Fallbacks for dark mode if Telegram doesn't provide enough
+if (tg.colorScheme === 'dark') {
+	if (!tp.bg_color) setVar('--tg-bg', '#0b1220');
+	if (!tp.text_color) setVar('--tg-text', '#e5e7eb');
+	if (!tp.hint_color) setVar('--tg-hint', 'rgba(229,231,235,.65)');
+	setVar('--tg-card', 'rgba(255,255,255,.06)');
+	setVar('--tg-border', 'rgba(255,255,255,.12)');
+}
 ```
-
-✅ Если увидишь `laravel-2025-12-15.log` — значит у тебя канал **daily** и ты чистил не тот файл.
 
 ---
 
-## Шаг 3. Проверь уровень логирования
+# 3) Уберём “контейнер” Bootstrap и лишние рамки — сделаем компактный layout
 
-Открой `.env` и посмотри:
+В body замени текущий контейнер:
 
-```env
-LOG_CHANNEL=...
-LOG_LEVEL=...
+### Было:
+
+```html
+<div class="container py-3">
+...
+</div>
 ```
 
-Если `LOG_LEVEL=error` или `critical` — то **`Log::info()` ты никогда не увидишь**.
+### Стало:
 
-Быстрая проверка в tinker:
+```html
+<div class="app-shell">
+	<div class="header">
+		<div>
+			<div class="fw-semibold">AccessHub</div>
+			<div class="role-line" id="roleLine">Role: ...</div>
+		</div>
+		<div class="badge-soft" id="userBadge">TG: -</div>
+	</div>
 
-```php
-\Illuminate\Support\Facades\Log::info('log.test.info');
-\Illuminate\Support\Facades\Log::error('log.test.error');
+	<div id="alerts"></div>
+
+	<ul class="nav nav-tabs" id="tabsNav"></ul>
+	<div class="tab-content" id="tabsContent"></div>
+</div>
 ```
-
-* Если видишь только `error`, а `info` нет → проблема в `LOG_LEVEL`.
 
 ---
 
-## Шаг 4. Убедись, что запись в файл вообще возможна
+# 4) Каждый таб пусть рисуется как “панель” (как на скринах)
 
-В PowerShell:
+В JS функцию `createTabPane()` измени так, чтобы `body` был внутри `.card-panel`.
 
-```powershell
-Test-Path .\storage\logs
+### Замени `createTabPane()` целиком:
+
+```js
+function createTabPane(tab, isActive) {
+	const pane = document.createElement('div');
+	pane.className = 'tab-pane fade' + (isActive ? ' show active' : '');
+	pane.id = 'tab_' + tab.id;
+
+	const panel = document.createElement('div');
+	panel.className = 'card-panel';
+
+	const title = document.createElement('div');
+	title.className = 'mb-2 fw-semibold';
+	title.textContent = tab.title;
+
+	panel.appendChild(title);
+
+	const body = document.createElement('div');
+	body.id = 'body_' + tab.id;
+	panel.appendChild(body);
+
+	pane.appendChild(panel);
+	return pane;
+}
 ```
-
-И попробуй создать файл:
-
-```powershell
-"test" | Out-File .\storage\logs\write-test.txt
-```
-
-Если тут ошибка — значит права/доступы.
 
 ---
 
-## Шаг 5. Самая частая причина в твоём кейсе
+# 5) Почему “не как на скринах” ещё?
 
-Ты пишешь: “бот работает, меню показывает, статистика есть, но логов нет”.
-
-Это очень похоже на:
-
-* `LOG_CHANNEL=daily` → ты смотришь `laravel.log`, а пишет в `laravel-2025-12-15.log`
-  или
-* `LOG_CHANNEL=stderr` → пишет в консоль процесса, а не в файл
+На скринах ключевой элемент — **“чёрный блок результата”** как у сообщений Telegram (` ``` `).
+В WebApp мы уже сделали `pre.codebox` — он будет выглядеть похоже (особенно в dark theme).
+Но **идеально** “как в чате” будет именно ответ бота в чат (что у тебя уже есть).
 
 ---
 
-## Мини-фикс “чтобы всегда было в файл” (на локалке)
+# Как это протестить (быстро)
 
-Поставь в `.env`:
+1. Пересобери/обнови страницу `/webapp` (Ctrl+F5 на десктопе, либо заново открыть WebApp в Telegram).
+2. Переключи Telegram на тёмную тему → WebApp должен стать тёмным.
+3. Проверь:
 
-```env
-LOG_CHANNEL=single
-LOG_LEVEL=debug
-```
-
-И выполни:
-
-```powershell
-php artisan optimize:clear
-```
-
-Перезапусти `php artisan serve`.
+   * табы стали “пилюлями”
+   * форма компактная
+   * панели без белых блоков и лишних рамок
+4. Нажми “Выдача” → убедись, что по submit WebApp закрывается и бот отвечает в чат.
 
 ---
 
-## Как протестить после фикса (железно)
+Если хочешь, я следующим шагом дам **ещё более “телеграмный” UI**:
 
-1. В tinker:
-
-```php
-\Illuminate\Support\Facades\Log::debug('debug.ok');
-\Illuminate\Support\Facades\Log::error('error.ok');
-```
-
-2. Проверь `storage/logs` — должен измениться файл и появиться записи.
-
----
-
-### Чтобы я сразу сказал точную причину без гаданий
-
-Скинь сюда 2 вещи (текстом):
-
-1. результат `config('logging.default')` из tinker
-2. список файлов из `storage/logs` (командой из шага 2)
-
-И я скажу конкретно: **куда именно у тебя пишутся логи и почему ты их не видишь**.
+* sticky нижняя кнопка “Отправить” как в Telegram,
+* автоподстановка `qty=1`,
+* поля в одну колонку без лишних отступов,
+* “История” с красивыми карточками вместо таблицы (в мобильном это лучше).
