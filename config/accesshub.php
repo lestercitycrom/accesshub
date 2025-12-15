@@ -36,3 +36,4 @@ return [
 	*/
 	'deny_by_default' => true,
 ];
+

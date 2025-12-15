@@ -98,3 +98,4 @@ final class AccessHubAccountSeedTestCommand extends Command
 		return self::SUCCESS;
 	}
 }
+

@@ -100,3 +100,4 @@ final class AccessHubAccountAddCommand extends Command
 		return $data;
 	}
 }
+

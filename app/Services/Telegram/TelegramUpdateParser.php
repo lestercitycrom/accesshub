@@ -61,3 +61,4 @@ final class TelegramUpdateParser
 		return (string) preg_replace('/\s+\bx\d{1,2}\b\s*$/u', '', $line2);
 	}
 }
+

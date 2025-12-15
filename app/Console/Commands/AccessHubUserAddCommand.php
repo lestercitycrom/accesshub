@@ -34,3 +34,4 @@ final class AccessHubUserAddCommand extends Command
 		return self::SUCCESS;
 	}
 }
+

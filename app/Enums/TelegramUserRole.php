@@ -9,3 +9,4 @@ enum TelegramUserRole: string
 	case Admin = 'admin';
 	case Operator = 'operator';
 }
+

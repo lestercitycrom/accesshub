@@ -31,3 +31,4 @@ final class LogsService
 		return implode("\n", $lines);
 	}
 }
+

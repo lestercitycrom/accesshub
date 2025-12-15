@@ -609,3 +609,4 @@ HAVING duplicates > 1;
 - Техническое задание: `docs/accesshub_TZ_v3.md`
 - Тестирование шага 2: `docs/step2.md`
 - Буфер разработки: `docs/buffer.md`
+

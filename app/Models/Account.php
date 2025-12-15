@@ -24,14 +24,10 @@ final class Account extends Model
 	];
 
 	protected $casts = [
-		// Security: encrypt sensitive fields at rest
-		'game_password' => 'encrypted',
-		'email_login' => 'encrypted',
-		'email_password' => 'encrypted',
-
 		'codes_receiver_emails' => 'array',
 		'platform_meta' => 'array',
 		'next_release_at' => 'datetime',
 		'is_active' => 'bool',
 	];
 }
+

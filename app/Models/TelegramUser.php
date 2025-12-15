@@ -20,3 +20,4 @@ final class TelegramUser extends Model
 		'role' => TelegramUserRole::class,
 	];
 }
+

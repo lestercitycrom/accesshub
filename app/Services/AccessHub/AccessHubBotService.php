@@ -7,22 +7,44 @@ namespace App\Services\AccessHub;
 use App\Enums\TelegramUserRole;
 use App\Models\TelegramUser;
 use App\Services\AccessHub\Admin\AddAccountWizard;
+use App\Services\AccessHub\Admin\AdminStatsService;
 use App\Services\AccessHub\Admin\BulkImportService;
 use App\Services\AccessHub\Admin\LogsService;
+use App\Services\AccessHub\Operator\OperatorHistoryService;
 use App\Services\Telegram\TelegramApiClient;
+use App\Services\Telegram\TelegramKeyboardFactory;
 use App\Services\Telegram\TelegramUpdateParser;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
 final class AccessHubBotService
 {
+	private const BTN_MENU = '📋 Меню';
+	private const BTN_ISSUE = '🎮 Получить аккаунт';
+	private const BTN_HISTORY = '🧾 Моя история';
+	private const BTN_HELP = 'ℹ️ Помощь';
+
+	private const BTN_ADD = '➕ Добавить';
+	private const BTN_IMPORT = '📥 Импорт';
+	private const BTN_STATS = '📊 Статистика';
+	private const BTN_LOGS = '🧾 Логи';
+	private const BTN_FIND = '🔎 Поиск';
+	private const BTN_EXPORT = '📤 Экспорт';
+	private const BTN_USERS = '👥 Пользователи';
+
+	private const BTN_REFRESH = '🔄 Обновить';
+
 	public function __construct(
 		private readonly TelegramApiClient $telegram,
 		private readonly TelegramUpdateParser $parser,
 		private readonly IssueAccountsService $issuer,
 		private readonly AddAccountWizard $addWizard,
 		private readonly BulkImportService $bulkImport,
-		private readonly LogsService $logs
+		private readonly LogsService $logs,
+		private readonly OperatorHistoryService $operatorHistory,
+		private readonly AdminStatsService $adminStats,
+		private readonly TelegramKeyboardFactory $kb
 	) {
 	}
 
@@ -54,28 +76,29 @@ final class AccessHubBotService
 			return;
 		}
 
-		if (str_starts_with($text, '/start') || str_starts_with($text, '/help')) {
-			$this->telegram->sendMessage($chatId, $this->helpText());
+		if (str_starts_with($text, '/start') || str_starts_with($text, '/help') || $text === self::BTN_HELP) {
+			$this->telegram->sendMessage($chatId, $this->helpText(), $this->mainReplyKeyboard($telegramId));
 			return;
 		}
 
-		$user = TelegramUser::query()
-			->where('telegram_id', $telegramId)
-			->where('is_active', true)
-			->first();
+		if (str_starts_with($text, '/menu') || $text === self::BTN_MENU || $text === self::BTN_REFRESH) {
+			$this->telegram->sendMessage($chatId, $this->menuText($telegramId), $this->mainReplyKeyboard($telegramId));
+			return;
+		}
+
+		$user = $this->loadUser($telegramId);
 
 		$denyByDefault = (bool) config('accesshub.deny_by_default', true);
-
 		if ($denyByDefault && $user === null) {
 			$this->telegram->sendMessage($chatId, 'Нет доступа. Обратитесь к администратору.');
 			return;
 		}
 
-		// Wizard input takes priority (admin only)
+		// Wizard input (admin only)
 		if ($this->addWizard->isActive($telegramId)) {
 			if ($text === '/abort') {
 				$this->addWizard->cancel($telegramId);
-				$this->telegram->sendMessage($chatId, 'Ок, мастер /add отменён.');
+				$this->telegram->sendMessage($chatId, 'Ок, мастер /add отменён.', $this->mainReplyKeyboard($telegramId));
 				return;
 			}
 
@@ -90,8 +113,19 @@ final class AccessHubBotService
 			return;
 		}
 
-		// Admin commands
-		if (str_starts_with($text, '/add')) {
+		// Fast buttons mapping (text UI)
+		if ($text === self::BTN_ISSUE) {
+			$this->telegram->sendMessage($chatId, $this->operatorIssueHelp(), $this->mainReplyKeyboard($telegramId));
+			return;
+		}
+
+		if (str_starts_with($text, '/history') || $text === self::BTN_HISTORY) {
+			$this->telegram->sendMessage($chatId, $this->operatorHistory->last($telegramId, 10), $this->mainReplyKeyboard($telegramId));
+			return;
+		}
+
+		// Admin buttons + commands
+		if ($text === self::BTN_ADD || str_starts_with($text, '/add')) {
 			if ($user?->role !== TelegramUserRole::Admin) {
 				$this->telegram->sendMessage($chatId, 'Нет прав.');
 				return;
@@ -102,28 +136,28 @@ final class AccessHubBotService
 			return;
 		}
 
-		if (str_starts_with($text, '/import')) {
+		if ($text === self::BTN_IMPORT || str_starts_with($text, '/import')) {
 			if ($user?->role !== TelegramUserRole::Admin) {
 				$this->telegram->sendMessage($chatId, 'Нет прав.');
 				return;
 			}
 
-			// Option A: /import + multiline text in same message
 			$payload = trim((string) preg_replace('/^\/import\s*/u', '', $text));
-			if ($payload !== '') {
+			if ($payload !== '' && str_starts_with($text, '/import')) {
 				$stat = $this->bulkImport->importFromText($payload);
-				$this->telegram->sendMessage($chatId, "Импорт завершён.\nДобавлено: {$stat['added']}\nПропущено: {$stat['skipped']}\nОшибок: {$stat['errors']}");
+				$this->telegram->sendMessage($chatId, $this->formatImportResult($stat), $this->mainReplyKeyboard($telegramId));
 				return;
 			}
 
-			// Option B: /import without text => ask for next message OR handle document if already present
-			$this->telegram->sendMessage($chatId, "Пришлите текст строками после /import или отправьте TXT-файл (документ) с содержимым.\nФормат строки:\nPlatform | Game | login | pass | email | emailpass | backupEmails");
+			$this->telegram->sendMessage(
+				$chatId,
+				"Импорт:\n1) отправь /import + строки\nили\n2) пришли TXT-файл документом.\n\nФормат строки:\nPlatform | Game | login | pass | email | emailpass | backupEmails",
+				$this->mainReplyKeyboard($telegramId)
+			);
 			return;
 		}
 
 		if (isset($message['document'])) {
-			// Allow import by sending a file. To keep flow simple:
-			// if admin sends a document, we try to parse it as import file.
 			if ($user?->role !== TelegramUserRole::Admin) {
 				$this->telegram->sendMessage($chatId, 'Нет прав.');
 				return;
@@ -153,7 +187,27 @@ final class AccessHubBotService
 			}
 
 			$stat = $this->bulkImport->importFromText($body);
-			$this->telegram->sendMessage($chatId, "Импорт из файла завершён.\nДобавлено: {$stat['added']}\nПропущено: {$stat['skipped']}\nОшибок: {$stat['errors']}");
+			$this->telegram->sendMessage($chatId, "Импорт из файла завершён.\n" . $this->formatImportResult($stat), $this->mainReplyKeyboard($telegramId));
+			return;
+		}
+
+		if ($text === self::BTN_STATS || str_starts_with($text, '/stats')) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			$this->telegram->sendMessage($chatId, $this->adminStats->summary(), $this->mainReplyKeyboard($telegramId));
+			return;
+		}
+
+		if ($text === self::BTN_LOGS) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			$this->telegram->sendMessage($chatId, "Логи:\nКоманда: /log <account_id>\nПример: /log 12", $this->mainReplyKeyboard($telegramId));
 			return;
 		}
 
@@ -164,23 +218,42 @@ final class AccessHubBotService
 			}
 
 			if (!preg_match('/^\/log\s+(\d+)\s*$/u', $text, $m)) {
-				$this->telegram->sendMessage($chatId, "Формат: /log <account_id>\nПример: /log 12");
+				$this->telegram->sendMessage($chatId, "Формат: /log <account_id>\nПример: /log 12", $this->mainReplyKeyboard($telegramId));
 				return;
 			}
 
 			$accountId = (int) $m[1];
-			$this->telegram->sendMessage($chatId, $this->logs->accountLog($accountId, 10));
+			$this->telegram->sendMessage($chatId, $this->logs->accountLog($accountId, 10), $this->mainReplyKeyboard($telegramId));
 			return;
 		}
 
-		// Operator issue request
+		// Future stubs (buttons only)
+		if (in_array($text, [self::BTN_FIND, self::BTN_EXPORT, self::BTN_USERS], true)) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, 'Нет прав.');
+				return;
+			}
+
+			$this->telegram->sendMessage($chatId, 'Скоро. Пока это заглушка.', $this->mainReplyKeyboard($telegramId));
+			return;
+		}
+
+		// Operator issue request (text flow)
 		$parsed = $this->parser->parseIssueRequest($text);
 		if ($parsed === null) {
-			$this->telegram->sendMessage($chatId, $this->invalidFormatText());
+			$this->telegram->sendMessage($chatId, $this->invalidFormatText(), $this->mainReplyKeyboard($telegramId));
 			return;
 		}
 
 		try {
+			Log::info('issue.request', [
+				'order_id' => $parsed->orderId,
+				'game' => $parsed->game,
+				'platform' => $parsed->platform,
+				'qty' => $parsed->qty,
+				'operator' => $telegramId,
+			]);
+
 			$items = $this->issuer->issue(
 				$parsed->orderId,
 				$telegramId,
@@ -189,49 +262,129 @@ final class AccessHubBotService
 				$parsed->qty
 			);
 
-			$this->telegram->sendMessage($chatId, $this->formatIssued($parsed->orderId, $parsed->game, $parsed->platform, $items));
+			Log::info('issue.completed', [
+				'items_count' => count($items),
+			]);
+
+			$messageText = $this->formatIssued($parsed->orderId, $parsed->game, $parsed->platform, $items);
+			$replyMarkup = $this->mainReplyKeyboard($telegramId);
+
+			Log::info('issue.sending', [
+				'text_length' => mb_strlen($messageText),
+				'text_preview' => mb_substr($messageText, 0, 300),
+				'has_reply_markup' => !empty($replyMarkup),
+				'reply_markup' => $replyMarkup,
+			]);
+
+			$this->telegram->sendMessage($chatId, $messageText, $replyMarkup);
 		} catch (RuntimeException $e) {
-			$this->telegram->sendMessage($chatId, $e->getMessage());
-		} catch (Throwable) {
-			$this->telegram->sendMessage($chatId, 'Ошибка. Попробуйте ещё раз или обратитесь к администратору.');
+			Log::error('issue.exception.runtime', [
+				'message' => $e->getMessage(),
+				'trace' => $e->getTraceAsString(),
+			]);
+			$this->telegram->sendMessage($chatId, $e->getMessage(), $this->mainReplyKeyboard($telegramId));
+		} catch (Throwable $e) {
+			Log::error('issue.exception.throwable', [
+				'message' => $e->getMessage(),
+				'class' => get_class($e),
+				'trace' => $e->getTraceAsString(),
+			]);
+			$this->telegram->sendMessage($chatId, 'Ошибка. Попробуйте ещё раз или обратитесь к администратору.', $this->mainReplyKeyboard($telegramId));
 		}
 	}
 
-	private function helpText(): string
+	private function menuText(string $telegramId): string
+	{
+		$user = $this->loadUser($telegramId);
+
+		if ($user?->role === TelegramUserRole::Admin) {
+			return implode("\n", [
+				"AccessHub — меню (Админ)",
+				"Выбери действие кнопками ниже.",
+			]);
+		}
+
+		return implode("\n", [
+			"AccessHub — меню (Оператор)",
+			"Выбери действие кнопками ниже.",
+		]);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private function mainReplyKeyboard(string $telegramId): array
+	{
+		$user = $this->loadUser($telegramId);
+
+		$rows = [
+			[self::BTN_MENU, self::BTN_HISTORY],
+			[self::BTN_ISSUE, self::BTN_HELP],
+		];
+
+		if ($user?->role === TelegramUserRole::Admin) {
+			$rows[] = [self::BTN_ADD, self::BTN_IMPORT];
+			$rows[] = [self::BTN_STATS, self::BTN_LOGS];
+			$rows[] = [self::BTN_FIND, self::BTN_EXPORT];
+			$rows[] = [self::BTN_USERS, self::BTN_REFRESH];
+		} else {
+			$rows[] = [self::BTN_REFRESH];
+		}
+
+		return $this->kb->reply($rows, true, false);
+	}
+
+	private function operatorIssueHelp(): string
 	{
 		return implode("\n", [
-			"AccessHub",
-			"",
-			"Оператор (выдача):",
-			"1) Номер заказа",
+			"Выдача аккаунта:",
+			"отправь 2 строки:",
+			"1) номер заказа",
 			"2) Игра (Платформа)",
 			"",
 			"Пример:",
 			"2446303",
 			"Minecraft (Xbox X)",
 			"",
-			"Qty (тест): суффикс x2 во 2-й строке:",
+			"Qty (тест): добавь x2 в конце второй строки:",
 			"Minecraft (Xbox X) x2",
-			"",
-			"Админ:",
-			"/add — добавить аккаунт (мастер)",
-			"/abort — отменить мастер",
-			"/import — массовый импорт текстом или TXT файлом",
-			"/log <account_id> — логи выдач по аккаунту",
+		]);
+	}
+
+	/**
+	 * @param array{added: int, skipped: int, errors: int} $stat
+	 */
+	private function formatImportResult(array $stat): string
+	{
+		return "Импорт завершён.\nДобавлено: {$stat['added']}\nПропущено: {$stat['skipped']}\nОшибок: {$stat['errors']}";
+	}
+
+	private function helpText(): string
+	{
+		return implode("\n", [
+			"AccessHub — команды (работают параллельно с кнопками):",
+			"/menu, /history, /add, /abort, /import, /log <id>, /stats",
 		]);
 	}
 
 	private function invalidFormatText(): string
 	{
 		return implode("\n", [
-			"Неверный формат.",
-			"Нужно 2 строки:",
-			"1) Номер заказа",
-			"2) Игра (Платформа)",
+			"❌ Неверный формат.",
 			"",
-			"Пример:",
+			"Нужно 2 строки:",
+			"1️⃣ Номер заказа (только цифры)",
+			"2️⃣ Игра (Платформа) — обязательно со скобками!",
+			"",
+			"✅ Правильный пример:",
 			"2446303",
 			"Minecraft (Xbox X)",
+			"",
+			"❌ Неправильно:",
+			"1212",
+			"4334ававава",
+			"",
+			"⚠️ Обратите внимание: во второй строке должны быть скобки (Платформа)!",
 		]);
 	}
 
@@ -256,4 +409,13 @@ final class AccessHubBotService
 
 		return trim(implode("\n", $lines));
 	}
+
+	private function loadUser(string $telegramId): ?TelegramUser
+	{
+		return TelegramUser::query()
+			->where('telegram_id', $telegramId)
+			->where('is_active', true)
+			->first();
+	}
 }
+

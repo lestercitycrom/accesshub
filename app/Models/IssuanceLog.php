@@ -28,3 +28,4 @@ final class IssuanceLog extends Model
 		return $this->belongsTo(Account::class);
 	}
 }
+

@@ -29,11 +29,20 @@ final class IssueAccountsService
 		$this->assertPlatformAllowed($platform);
 
 		return DB::transaction(function () use ($orderId, $operatorTelegramId, $game, $platform, $qty, $now, $releaseDays): array {
+			// Get already issued account IDs for this order
+			$alreadyIssued = IssuanceLog::query()
+				->where('order_id', $orderId)
+				->pluck('account_id')
+				->toArray();
+
 			$accounts = Account::query()
 				->where('is_active', true)
 				->where('game', $game)
 				->where('platform', $platform)
 				->where('available_uses', '>', 0)
+				->when(count($alreadyIssued) > 0, function ($query) use ($alreadyIssued) {
+					$query->whereNotIn('id', $alreadyIssued);
+				})
 				->orderBy('id')
 				->lockForUpdate()
 				->limit($qty)
@@ -90,3 +99,4 @@ final class IssueAccountsService
 		}
 	}
 }
+

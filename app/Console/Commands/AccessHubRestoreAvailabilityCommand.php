@@ -33,3 +33,4 @@ final class AccessHubRestoreAvailabilityCommand extends Command
 		return self::SUCCESS;
 	}
 }
+
