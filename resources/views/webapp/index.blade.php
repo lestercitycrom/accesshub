@@ -12,11 +12,14 @@
 		:root {
 			--ah-bg: #0F1722;
 			--ah-panel: #182232;
+			--ah-panel-2: #141C29;
 			--ah-border: rgba(255, 255, 255, .10);
 			--ah-input: rgba(255, 255, 255, .06);
 			--ah-text: #E6EDF3;
 			--ah-hint: rgba(230, 237, 243, .60);
+			--ah-placeholder: rgba(230, 237, 243, .45);
 			--ah-accent: #2F81F7;
+			--ah-accent-weak: rgba(47, 129, 247, .20);
 			--ah-code: rgba(0, 0, 0, .55);
 		}
 
@@ -58,6 +61,27 @@
 			padding-bottom: 6px;
 			-webkit-overflow-scrolling: touch;
 			scrollbar-width: none;
+			position: relative;
+		}
+
+		.tabs-wrap::before,
+		.tabs-wrap::after {
+			content: '';
+			position: sticky;
+			width: 20px;
+			height: 100%;
+			z-index: 1;
+			pointer-events: none;
+		}
+
+		.tabs-wrap::before {
+			left: 0;
+			background: linear-gradient(to right, var(--ah-bg), transparent);
+		}
+
+		.tabs-wrap::after {
+			right: 0;
+			background: linear-gradient(to left, var(--ah-bg), transparent);
 		}
 
 		.tabs-wrap::-webkit-scrollbar {
@@ -74,7 +98,7 @@
 			border: 1px solid var(--ah-border);
 			background: rgba(255, 255, 255, .04);
 			color: var(--ah-text);
-			border-radius: 999px;
+			border-radius: 12px;
 			padding: 6px 10px;
 			font-size: 14px;
 			white-space: nowrap;
@@ -101,24 +125,99 @@
 		}
 
 		.form-label {
-			color: var(--ah-hint);
-			font-size: 12px;
-			margin-bottom: 4px;
+			display: none;
 		}
 
 		.form-control {
-			border-radius: 12px;
+			border-radius: 10px;
 			border: 1px solid var(--ah-border);
 			background: var(--ah-input);
 			color: var(--ah-text);
+			transition: border-color 0.2s, box-shadow 0.2s;
+		}
+
+		.form-control:focus {
+			background: var(--ah-input);
+			border-color: var(--ah-accent);
+			box-shadow: 0 0 0 3px var(--ah-accent-weak);
+			color: var(--ah-text);
+			outline: none;
 		}
 
 		.form-control::placeholder {
-			color: rgba(230, 237, 243, .45);
+			color: var(--ah-placeholder);
 		}
 
 		.btn {
+			border-radius: 10px;
+		}
+
+		.card-section {
+			background: var(--ah-panel-2);
+			border: 1px solid var(--ah-border);
 			border-radius: 12px;
+			padding: 10px;
+			margin-bottom: 8px;
+		}
+
+		.tab-header {
+			display: flex;
+			align-items: flex-start;
+			margin-bottom: 16px;
+		}
+
+		.tab-header-icon {
+			font-size: 24px;
+			margin-right: 8px;
+			line-height: 1;
+		}
+
+		.tab-header-title {
+			font-size: 18px;
+			font-weight: 600;
+			margin-bottom: 4px;
+		}
+
+		.tab-header-subtitle {
+			color: var(--ah-hint);
+			font-size: 13px;
+		}
+
+		.history-pagination {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-top: 16px;
+			gap: 12px;
+		}
+
+		.history-pagination-info {
+			color: var(--ah-hint);
+			font-size: 12px;
+		}
+
+		.history-pagination-buttons {
+			display: flex;
+			gap: 8px;
+		}
+
+		.history-pagination-btn {
+			padding: 6px 12px;
+			border-radius: 10px;
+			border: 1px solid var(--ah-border);
+			background: var(--ah-panel);
+			color: var(--ah-text);
+			font-size: 13px;
+			cursor: pointer;
+		}
+
+		.history-pagination-btn:hover:not(:disabled) {
+			background: var(--ah-panel-2);
+		}
+
+		.history-pagination-btn:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
 		}
 
 		.sticky-actions {
@@ -210,6 +309,10 @@
 
 		tg.ready();
 		tg.expand();
+
+		// Set Telegram WebApp header colors
+		tg.setBackgroundColor('#0F1722');
+		tg.setHeaderColor('#0F1722');
 
 		// Optional: use accent color from Telegram themeParams
 		const tp = tg.themeParams || {};
@@ -349,11 +452,39 @@
 			const panel = document.createElement('div');
 			panel.className = 'card-panel';
 
-			const title = document.createElement('div');
-			title.className = 'mb-2 fw-semibold';
-			title.textContent = tab.title;
+			// Tab header with icon (if available)
+			if (tab.header) {
+				const header = document.createElement('div');
+				header.className = 'tab-header';
 
-			panel.appendChild(title);
+				if (tab.header.icon) {
+					const icon = document.createElement('span');
+					icon.className = 'tab-header-icon';
+					icon.textContent = tab.header.icon;
+					header.appendChild(icon);
+				}
+
+				const titleWrap = document.createElement('div');
+				const title = document.createElement('div');
+				title.className = 'tab-header-title';
+				title.textContent = tab.header.title || tab.title;
+				titleWrap.appendChild(title);
+
+				if (tab.header.subtitle) {
+					const subtitle = document.createElement('div');
+					subtitle.className = 'tab-header-subtitle';
+					subtitle.textContent = tab.header.subtitle;
+					titleWrap.appendChild(subtitle);
+				}
+
+				header.appendChild(titleWrap);
+				panel.appendChild(header);
+			} else {
+				const title = document.createElement('div');
+				title.className = 'mb-2 fw-semibold';
+				title.textContent = tab.title;
+				panel.appendChild(title);
+			}
 
 			const body = document.createElement('div');
 			body.id = 'body_' + tab.id;
@@ -380,10 +511,6 @@
 				const col = document.createElement('div');
 				col.className = 'col-12';
 
-				const label = document.createElement('label');
-				label.className = 'form-label';
-				label.textContent = f.label || f.name;
-
 				let input;
 
 				if (f.type === 'textarea') {
@@ -396,6 +523,7 @@
 
 				input.className = 'form-control';
 				input.name = f.name;
+				input.placeholder = f.placeholder || f.label || f.name;
 
 				if (f.required) input.required = true;
 				if (f.pattern) input.pattern = f.pattern;
@@ -403,7 +531,6 @@
 				if (f.max !== undefined) input.max = String(f.max);
 				if (f.default !== undefined) input.value = String(f.default);
 
-				col.appendChild(label);
 				col.appendChild(input);
 				form.appendChild(col);
 			}
@@ -469,7 +596,7 @@
 						const resp = await apiGet(url);
 
 						resultBox.innerHTML = '';
-						renderApiResult(resp, resultBox);
+						renderApiResult(resp, resultBox, endpoint, payload);
 						return;
 					}
 
@@ -482,14 +609,14 @@
 			root.appendChild(form);
 		}
 
-		function renderApiResult(resp, root) {
+		function renderApiResult(resp, root, endpoint, baseParams) {
 			const data = resp.data || {};
 			if (Array.isArray(data.items)) {
 				// Check if it's history (has order_id, game, platform, account_id)
 				const first = data.items[0] || {};
 				const isHistory = first.hasOwnProperty('order_id') && first.hasOwnProperty('game') && first.hasOwnProperty('platform') && first.hasOwnProperty('account_id');
 
-				if (isHistory) {
+				if (isHistory && endpoint) {
 					// Render as cards for history
 					for (const row of data.items) {
 						const card = document.createElement('div');
@@ -515,10 +642,65 @@
 						root.appendChild(card);
 					}
 
-					const meta = document.createElement('div');
-					meta.className = 'history-meta';
-					meta.textContent = `page=${data.page ?? '-'} per_page=${data.per_page ?? '-'} total=${data.total ?? '-'}`;
-					root.appendChild(meta);
+					// Pagination UI
+					const page = data.page || 1;
+					const perPage = data.per_page || 20;
+					const total = data.total || 0;
+					const totalPages = Math.ceil(total / perPage);
+
+					const pagination = document.createElement('div');
+					pagination.className = 'history-pagination';
+
+					const info = document.createElement('div');
+					info.className = 'history-pagination-info';
+					info.textContent = `Стр. ${page} из ${totalPages}`;
+					pagination.appendChild(info);
+
+					const buttons = document.createElement('div');
+					buttons.className = 'history-pagination-buttons';
+
+					const prevBtn = document.createElement('button');
+					prevBtn.className = 'history-pagination-btn';
+					prevBtn.textContent = '←';
+					prevBtn.disabled = page <= 1;
+					prevBtn.addEventListener('click', async () => {
+						if (page > 1) {
+							const params = { ...(baseParams || {}), page: page - 1, per_page: perPage };
+							const query = buildQuery(params);
+							const url = query ? (endpoint + '?' + query) : endpoint;
+							try {
+								const resp = await apiGet(url);
+								root.innerHTML = '';
+								renderApiResult(resp, root, endpoint, params);
+							} catch (err) {
+								showAlert('danger', err.message || 'Error');
+							}
+						}
+					});
+					buttons.appendChild(prevBtn);
+
+					const nextBtn = document.createElement('button');
+					nextBtn.className = 'history-pagination-btn';
+					nextBtn.textContent = '→';
+					nextBtn.disabled = page >= totalPages;
+					nextBtn.addEventListener('click', async () => {
+						if (page < totalPages) {
+							const params = { ...(baseParams || {}), page: page + 1, per_page: perPage };
+							const query = buildQuery(params);
+							const url = query ? (endpoint + '?' + query) : endpoint;
+							try {
+								const resp = await apiGet(url);
+								root.innerHTML = '';
+								renderApiResult(resp, root, endpoint, params);
+							} catch (err) {
+								showAlert('danger', err.message || 'Error');
+							}
+						}
+					});
+					buttons.appendChild(nextBtn);
+
+					pagination.appendChild(buttons);
+					root.appendChild(pagination);
 
 					return;
 				}
