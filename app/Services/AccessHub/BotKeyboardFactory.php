@@ -40,7 +40,7 @@ final class BotKeyboardFactory
 			[__('bot.menu.issue'), __('bot.menu.history')],
 			[__('bot.menu.add'), __('bot.menu.import')],
 			[__('bot.menu.stats'), __('bot.menu.logs')],
-			[__('bot.menu.help'), __('bot.menu.lang')],
+			[__('bot.menu.help')],
 		];
 
 		return $this->kb->reply($rows);
