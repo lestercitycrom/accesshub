@@ -17,19 +17,19 @@ final class OperatorHistoryService
 			->get();
 
 		if ($items->isEmpty()) {
-			return 'История пустая.';
+			return __('bot.history.empty');
 		}
 
-		$lines = [];
-		$lines[] = "Последние выдачи ({$limit}):";
-		$lines[] = '';
-
+		$itemLines = [];
 		foreach ($items as $log) {
 			$dt = $log->issued_at?->format('Y-m-d H:i:s') ?? '-';
-			$lines[] = "{$dt} | order: {$log->order_id} | {$log->game} ({$log->platform}) | account: {$log->account_id}";
+			$itemLines[] = "{$dt} | order: {$log->order_id} | {$log->game} ({$log->platform}) | account: {$log->account_id}";
 		}
 
-		return implode("\n", $lines);
+		return __('bot.history.last', [
+			'count' => $limit,
+			'items' => implode("\n", $itemLines),
+		]);
 	}
 }
 

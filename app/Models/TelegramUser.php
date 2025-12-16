@@ -13,6 +13,7 @@ final class TelegramUser extends Model
 		'telegram_id',
 		'role',
 		'is_active',
+		'locale',
 	];
 
 	protected $casts = [

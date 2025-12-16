@@ -77,6 +77,7 @@ final class IssueAccountsService
 				$result[] = [
 					'game_login' => (string) $account->game_login,
 					'game_password' => (string) $account->game_password,
+					'account_id' => $account->id,
 				];
 			}
 
