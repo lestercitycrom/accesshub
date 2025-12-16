@@ -1,122 +1,155 @@
-# AccessHub — UI ТЗ (v11) Infinite History + Desktop Tabs Wheel Scroll
+# AccessHub — ТЗ v13: Локализация бота (reply menu + текстовые ответы)
 
-Дата: **2025-12-15**  
-Файл работ: `resources/views/webapp/index.blade.php`  
-Backend API: **не менять** (используем текущие `page/per_page/total`).
+Дата: **2025-12-16**  
+Проект: **accesshub**  
+Стек: **Laravel 12 + PHP 8.3 + Telegram Bot**  
+Область: **текстовый бот** (reply keyboard и текстовые ответы). WebApp не трогаем.
 
 ---
 
 ## 1) Цель
 
-1) Заменить постраничник истории на **infinite scroll** (лента), с безопасным fallback “Загрузить ещё”.  
-2) Исправить UX табов на Desktop: колёсико мыши **скроллит меню вкладок горизонтально**, не страницу.
+Сделать многоязычный текстовый интерфейс бота:
+
+- Reply-меню (ReplyKeyboardMarkup) — локализовано.
+- Все текстовые ответы бота — локализованы.
+- Язык выбирается автоматически по Telegram, но пользователь может переопределить его через `/lang`.
+- Реализация через **стандартную локализацию Laravel** (`App::setLocale`, `lang/*`, `__()`, `trans_choice()`).
 
 ---
 
-## 2) История: infinite scroll (рекомендованный UX)
+## 2) Источник языка (приоритет)
 
-### 2.1 Поведение
-- При открытии вкладки “История” загружается `page=1`.
-- При прокрутке вниз, когда пользователь дошёл до конца списка — автоматически подгружается следующая страница `page++`.
-- Данные **добавляются в конец** (append), без перерендера уже показанных карточек.
-- Когда `loadedCount >= total` — показывать “Конец списка”.
-- Если IntersectionObserver недоступен или произошла ошибка — показывать кнопку **“Загрузить ещё”**.
+1) `telegram_users.locale` (если пользователь выбирал язык через `/lang`).  
+2) `update.message.from.language_code` (Telegram).  
+3) Fallback: `config('app.locale')` (обычно `en`).
 
-### 2.2 Состояние в памяти (в JS)
-Держать в объекте состояния:
-- `historyPage` (int, старт 1)
-- `historyPerPage` (int)
-- `historyTotal` (int)
-- `historyLoading` (bool)
-- `historyDone` (bool)
-- `historySeenIds` (Set) — анти-дубликаты (по `log_id` или `(order_id,account_id,created_at)` fallback)
+Нормализация:
+- `ru-RU` → `ru`
+- `uk-UA` → `uk`
+- неизвестное → `en`
 
-### 2.3 Маркер конца списка
-В конце списка карточек добавить элемент:
-```html
-<div id="historySentinel"></div>
-```
-И наблюдать его через `IntersectionObserver`.
-
-### 2.4 UI элементы (обязательные)
-- `#historyList` — контейнер карточек
-- `#historyLoader` — индикатор загрузки
-- `#historyLoadMoreBtn` — кнопка “Загрузить ещё” (fallback)
-- `#historyEnd` — “Конец списка”
+Whitelist: `['en','ru','uk']`.
 
 ---
 
-## 3) Tabs: wheel scroll на Desktop (критично для UX)
+## 3) Хранение locale
 
-### 3.1 Требование
-Когда курсор над зоной вкладок (`.tabs-rail`), колесо мыши должно:
-- скроллить `.tabs-wrap` по X,
-- **не скроллить страницу вниз**,
-- работать только если вкладки реально шире контейнера.
-
-### 3.2 JS (готовый код)
-Вызвать **после рендера табов**:
-
-```js
-function enableTabsWheelScroll() {
-  const rail = document.querySelector('.tabs-rail');
-  const wrap = document.querySelector('.tabs-wrap');
-  if (!rail || !wrap) return;
-
-  rail.addEventListener('wheel', (e) => {
-    const canScrollX = wrap.scrollWidth > wrap.clientWidth;
-    if (!canScrollX) return;
-
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-
-    e.preventDefault();
-    wrap.scrollLeft += e.deltaY;
-  }, { passive: false });
-}
-
-enableTabsWheelScroll();
-```
-
-CSS must-have:
-```css
-.tabs-rail { overflow:hidden; }
-.tabs-wrap { overflow-x:auto; overflow-y:hidden; }
-```
+### 3.1 Миграция
+Добавить колонку:
+- `telegram_users.locale` (nullable string длиной 5)
 
 ---
 
-## 4) Реализация: шаги
+## 4) Установка locale на каждый Update
 
-### 4.1 История
-1) Удалить текущий постраничник UI (строка `page=... per_page=... total=...` и Prev/Next).
-2) Добавить блоки `historyList/Loader/LoadMoreBtn/End/Sentinel`.
-3) Реализовать:
-- `historyReset()` — очистить state + DOM при смене фильтра/вкладки
-- `historyFetchNext()` — запрос `?page=historyPage`, append карточки, обновить state
-- `historyAttachObserver()` — IntersectionObserver на sentinel
-4) В обработчике формы истории:
-- при submit: historyReset(); historyFetchNext()
+В начале обработки каждого апдейта:
+
+- определить `telegram_id`
+- найти/создать `telegram_users`
+- вычислить `locale` по приоритетам из п.2
+- выполнить `App::setLocale($locale)`
 
 ---
 
-## 5) Тестирование
+## 5) Файлы переводов (Laravel)
 
-### 5.1 История infinite scroll
-- Открыть История → загрузка первой страницы.
-- Скроллить вниз → подгружается page 2 → карточки добавляются.
-- Дойти до конца → показывается “Конец списка”.
-- Ошибка → появляется “Загрузить ещё” (fallback).
+Создать файлы:
+- `lang/en/bot.php`
+- `lang/ru/bot.php`
+- `lang/uk/bot.php`
 
-### 5.2 Desktop tabs wheel
-- Telegram Desktop: навести мышь на меню вкладок → крутить колесо:
-  - вкладки двигаются влево/вправо,
-  - страница не уезжает вниз.
-- Навести мышь на контент → колесо снова скроллит страницу.
+Пример ключей:
+
+- `bot.menu.issue`
+- `bot.menu.history`
+- `bot.menu.help`
+- `bot.menu.admin`
+- `bot.menu.lang`
+- `bot.common.back`
+- `bot.common.cancel`
+- `bot.replies.welcome`
+- `bot.replies.access_denied`
+- `bot.replies.error_generic`
+- `bot.issue.success`
+- `bot.issue.not_found`
+- `bot.history.empty`
+- `bot.history.items` (для `trans_choice`)
+
+Все ответы в коде: **только** через `__()` / `trans_choice()`.
 
 ---
 
-## 6) Acceptance
+## 6) Reply-меню: генерация и обработка
 
-- История работает как лента: авто-подгрузка + кнопка “Загрузить ещё”.
-- Нет дублей карточек (Set).
-- Табы на Desktop скроллятся колёсиком, без прокрутки страницы.
+### 6.1 Генерация меню через фабрику
+Создать класс `BotKeyboardFactory`:
+
+- `operatorMenu(): array`
+- `adminMenu(): array`
+- `languageMenu(): array`
+
+Кнопки брать из `__()`.
+
+### 6.2 Обработка нажатий reply-кнопок
+ReplyKeyboard не поддерживает `callback_data`, приходит только текст.
+
+Решение: mapping “action → localized label” и обратный поиск:
+
+- `ISSUE => __('bot.menu.issue')`
+- `HISTORY => __('bot.menu.history')`
+- `HELP => __('bot.menu.help')`
+
+При входящем тексте — ищем action через `array_search()`.
+
+---
+
+## 7) Текстовые ответы: шаблоны + параметры
+
+Все сообщения с данными отдавать так:
+
+- шаблон в `lang/*/bot.php`
+- параметры: `__('...', ['order' => $orderId, 'game' => $game])`
+
+Для количества:
+- `trans_choice('bot.history.items', $count, ['count' => $count])`
+
+---
+
+## 8) Команда выбора языка `/lang` (обязательно)
+
+- `/lang` показывает меню RU/EN/UK.
+- Выбор → сохранить в `telegram_users.locale`.
+- Подтверждение на выбранном языке.
+- Дальше используем сохранённый locale независимо от Telegram language.
+
+---
+
+## 9) Рефакторинг (минимально)
+
+Добавить 2 сервиса:
+
+1) `BotLocaleResolver`
+- `resolve(Update $update, ?TelegramUser $user): string`
+
+2) `BotKeyboardFactory`
+- методы меню
+- `actionMap(): array` (action → label)
+
+---
+
+## 10) Тестирование
+
+- Без locale: язык берётся из Telegram language_code.
+- С /lang: сохранённый locale приоритетнее Telegram.
+- Reply-кнопки работают на RU/EN/UK.
+- Неизвестный язык → EN.
+
+---
+
+## 11) Acceptance criteria
+
+- Reply меню и ответы локализованы на RU/EN/UK.
+- Язык корректно определяется и сохраняется через `/lang`.
+- Нет хардкода текстов в хендлерах.
+- Reply-кнопки корректно распознаются на любом языке (mapping).
