@@ -28,12 +28,23 @@ final class ImportTextController extends Controller
 			return $this->forbidden('admin only');
 		}
 
-		$validator = Validator::make($request->all(), [
-			'text' => ['required', 'string', 'max:2000000'],
-		]);
+		$validator = Validator::make(
+			$request->all(),
+			[
+				'text' => ['required', 'string', 'max:2000000'],
+			],
+			[
+				'required' => __('webapp.errors.required'),
+				'string' => __('webapp.errors.string'),
+				'max' => __('webapp.errors.max'),
+			],
+			[
+				'text' => __('webapp.tabs.admin_import.fields.text'),
+			]
+		);
 
 		if ($validator->fails()) {
-			return $this->validationError('Validation failed', $validator->errors()->toArray());
+			return $this->validationError(__('webapp.errors.validation_failed'), $validator->errors()->toArray());
 		}
 
 		$text = (string) $validator->validated()['text'];

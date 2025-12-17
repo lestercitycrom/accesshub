@@ -67,6 +67,16 @@ return [
 				'subtitle' => 'Current totals',
 			],
 		],
+		'admin_import' => [
+			'title' => 'Admin: Import',
+			'header' => [
+				'title' => 'Import',
+				'subtitle' => 'Bulk import accounts',
+			],
+			'fields' => [
+				'text' => 'Import data',
+			],
+		],
 	],
 	'ui' => [
 		'submit' => 'Submit',
@@ -91,6 +101,7 @@ return [
 	'errors' => [
 		'validation_failed' => 'Please check the form fields.',
 		'required' => 'The :attribute field is required.',
+		'string' => 'The :attribute must be a string.',
 		'integer' => 'The :attribute must be an integer.',
 		'min' => 'The :attribute must be at least :min.',
 		'max' => 'The :attribute must be at most :max.',

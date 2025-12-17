@@ -67,6 +67,16 @@ return [
 				'subtitle' => 'Поточні показники',
 			],
 		],
+		'admin_import' => [
+			'title' => 'Адмін: Імпорт',
+			'header' => [
+				'title' => 'Імпорт',
+				'subtitle' => 'Масовий імпорт акаунтів',
+			],
+			'fields' => [
+				'text' => 'Дані для імпорту',
+			],
+		],
 	],
 	'ui' => [
 		'submit' => 'Відправити',
@@ -91,6 +101,7 @@ return [
 	'errors' => [
 		'validation_failed' => 'Перевірте поля форми.',
 		'required' => 'Поле ":attribute" є обовʼязковим.',
+		'string' => 'Поле ":attribute" має бути рядком.',
 		'integer' => 'Поле ":attribute" має бути числом.',
 		'min' => 'Поле ":attribute" має бути не менше :min.',
 		'max' => 'Поле ":attribute" має бути не більше :max.',

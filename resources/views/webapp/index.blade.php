@@ -665,7 +665,13 @@
 					input.rows = 5;
 				} else {
 					input = document.createElement('input');
-					input.type = (f.type === 'number') ? 'number' : 'text';
+					if (f.type === 'textarea') {
+						input = document.createElement('textarea');
+						input.className = 'form-control';
+						input.rows = 8;
+					} else {
+						input.type = (f.type === 'number') ? 'number' : 'text';
+					}
 				}
 
 				input.className = 'form-control';
@@ -1220,8 +1226,11 @@
 
 		function renderExportTab(root) {
 			const wrap = document.createElement('div');
-			wrap.className = 'd-flex flex-column gap-2';
+			wrap.className = 'd-flex flex-column gap-3';
 
+			// Accounts export button
+			const accountsSection = document.createElement('div');
+			accountsSection.className = 'd-flex flex-column gap-2';
 			const btn1 = document.createElement('button');
 			btn1.type = 'button';
 			btn1.className = 'btn btn-outline-primary';
@@ -1234,22 +1243,80 @@
 					showAlert('danger', e.message || 'export error');
 				}
 			});
+			accountsSection.appendChild(btn1);
+
+			// Issuance logs export with filters
+			const logsSection = document.createElement('div');
+			logsSection.className = 'd-flex flex-column gap-2';
+
+			const logsTitle = document.createElement('div');
+			logsTitle.className = 'small text-muted';
+			logsTitle.textContent = t('download_logs');
+
+			const logsForm = document.createElement('div');
+			logsForm.className = 'd-flex flex-column gap-2';
+			logsForm.style.marginBottom = '0.5rem';
+
+			const fields = [
+				{ name: 'date_from', label: 'Date from', type: 'date', placeholder: 'YYYY-MM-DD' },
+				{ name: 'date_to', label: 'Date to', type: 'date', placeholder: 'YYYY-MM-DD' },
+				{ name: 'operator_telegram_id', label: 'Operator ID', type: 'text', placeholder: 'Telegram ID' },
+				{ name: 'game', label: 'Game', type: 'text', placeholder: 'Game name' },
+				{ name: 'platform', label: 'Platform', type: 'text', placeholder: 'Platform name' },
+				{ name: 'order_id', label: 'Order ID', type: 'text', placeholder: 'Order ID' },
+			];
+
+			fields.forEach(field => {
+				const group = document.createElement('div');
+				group.className = 'mb-2';
+
+				const label = document.createElement('label');
+				label.className = 'form-label small';
+				label.textContent = field.label;
+				label.setAttribute('for', 'export_' + field.name);
+
+				const input = document.createElement('input');
+				input.type = field.type;
+				input.className = 'form-control form-control-sm';
+				input.id = 'export_' + field.name;
+				input.name = field.name;
+				input.placeholder = field.placeholder || '';
+
+				group.appendChild(label);
+				group.appendChild(input);
+				logsForm.appendChild(group);
+			});
 
 			const btn2 = document.createElement('button');
 			btn2.type = 'button';
 			btn2.className = 'btn btn-outline-primary';
-			btn2.textContent = 'Скачать issuance_logs.csv';
+			btn2.textContent = t('download_logs');
 			btn2.addEventListener('click', async () => {
 				try {
-					await downloadCsv('/api/webapp/api/admin/export/issuance_logs.csv', 'issuance_logs.csv');
-					showAlert('success', 'issuance_logs.csv скачан');
+					const params = {};
+					fields.forEach(field => {
+						const input = document.getElementById('export_' + field.name);
+						if (input && input.value.trim() !== '') {
+							params[field.name] = input.value.trim();
+						}
+					});
+
+					const query = buildQuery(params);
+					const url = '/api/webapp/api/admin/export/issuance_logs.csv' + (query ? ('?' + query) : '');
+					await downloadCsv(url, 'issuance_logs.csv');
+					showAlert('success', t('downloaded', { file: 'issuance_logs.csv' }));
 				} catch (e) {
 					showAlert('danger', e.message || 'export error');
 				}
 			});
 
-			wrap.appendChild(btn1);
-			wrap.appendChild(btn2);
+			logsSection.appendChild(logsTitle);
+			logsSection.appendChild(logsForm);
+			logsSection.appendChild(btn2);
+
+			wrap.appendChild(accountsSection);
+			wrap.appendChild(document.createElement('hr'));
+			wrap.appendChild(logsSection);
 
 			root.appendChild(wrap);
 		}

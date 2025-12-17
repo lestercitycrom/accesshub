@@ -67,6 +67,16 @@ return [
 				'subtitle' => 'Текущие показатели',
 			],
 		],
+		'admin_import' => [
+			'title' => 'Админ: Импорт',
+			'header' => [
+				'title' => 'Импорт',
+				'subtitle' => 'Массовый импорт аккаунтов',
+			],
+			'fields' => [
+				'text' => 'Данные для импорта',
+			],
+		],
 	],
 	'ui' => [
 		'submit' => 'Отправить',
@@ -91,6 +101,7 @@ return [
 	'errors' => [
 		'validation_failed' => 'Проверьте поля формы.',
 		'required' => 'Поле ":attribute" обязательно.',
+		'string' => 'Поле ":attribute" должно быть строкой.',
 		'integer' => 'Поле ":attribute" должно быть числом.',
 		'min' => 'Поле ":attribute" должно быть не меньше :min.',
 		'max' => 'Поле ":attribute" должно быть не больше :max.',

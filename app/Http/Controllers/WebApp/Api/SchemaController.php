@@ -113,6 +113,24 @@ use Illuminate\Routing\Controller;
 					'fields' => [],
 				],
 				[
+					'id' => 'admin_import',
+					'title' => __('webapp.tabs.admin_import.title'),
+					'roles' => ['admin'],
+					'header' => [
+						'icon' => '📥',
+						'title' => __('webapp.tabs.admin_import.header.title'),
+						'subtitle' => __('webapp.tabs.admin_import.header.subtitle'),
+					],
+					'submit' => [
+						'type' => 'api',
+						'endpoint' => '/api/webapp/api/admin/import/text',
+						'method' => 'POST',
+					],
+					'fields' => [
+						['name' => 'text', 'label' => __('webapp.tabs.admin_import.fields.text'), 'placeholder' => __('webapp.tabs.admin_import.fields.text'), 'type' => 'textarea', 'required' => true],
+					],
+				],
+				[
 					'id' => 'admin_export',
 					'title' => __('webapp.tabs.admin_export.title'),
 					'roles' => ['admin'],
