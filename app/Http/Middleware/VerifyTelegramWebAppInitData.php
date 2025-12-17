@@ -8,6 +8,7 @@ use App\Models\TelegramUser;
 use App\Services\Telegram\TelegramWebAppInitDataValidator;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 final class VerifyTelegramWebAppInitData
@@ -22,6 +23,21 @@ final class VerifyTelegramWebAppInitData
 	 */
 	public function handle(Request $request, Closure $next): Response
 	{
+		$debugTelegramId = $this->extractDebugTelegramId($request);
+		if ($debugTelegramId !== null) {
+			Log::warning('webapp.debug_bypass_used', [
+				'telegram_id' => $debugTelegramId,
+			]);
+
+			$this->applyLocale($request, '', true);
+			$authError = $this->attachUserAndAuthorize($request, $debugTelegramId);
+			if ($authError !== null) {
+				return $authError;
+			}
+
+			return $next($request);
+		}
+
 		$initData = $this->extractInitData($request);
 		if ($initData === null) {
 			return $this->jsonError('UNAUTHORIZED', 'initData missing', 401);
@@ -52,51 +68,108 @@ final class VerifyTelegramWebAppInitData
 
 		$telegramId = (string) $user['id'];
 
-		// Determine locale from Telegram user language_code
 		$languageCode = (string) ($user['language_code'] ?? '');
-		$locale = $this->mapLanguageCodeToLocale($languageCode);
-		app()->setLocale($locale);
-		$request->attributes->set('locale', $locale);
+		$this->applyLocale($request, $languageCode, false);
 
-		$request->attributes->set('telegram_id', $telegramId);
-
-		$denyByDefault = (bool) config('accesshub.deny_by_default', true);
-
-		$dbUser = TelegramUser::query()
-			->where('telegram_id', $telegramId)
-			->where('is_active', true)
-			->first();
-
-		if ($denyByDefault && $dbUser === null) {
-			return $this->jsonError('FORBIDDEN', 'no access', 403);
+		$authError = $this->attachUserAndAuthorize($request, $telegramId);
+		if ($authError !== null) {
+			return $authError;
 		}
-
-		$request->attributes->set('telegram_user', $dbUser);
 
 		return $next($request);
 	}
 
+	/**
+	 * @return string|null Telegram ID for debug bypass
+	 */
+	private function extractDebugTelegramId(Request $request): ?string
+	{
+		$debugAllowed = (bool) config('accesshub.webapp.debug_allow_header', false);
+		if (!$debugAllowed) {
+			return null;
+		}
+
+		$isSafeEnv = app()->environment('local') || (bool) config('app.debug', false);
+		if (!$isSafeEnv) {
+			return null;
+		}
+
+		$debugUserId = $request->header('X-Debug-Tg-UserId');
+		if (!is_string($debugUserId)) {
+			return null;
+		}
+
+		$debugUserId = trim($debugUserId);
+		if ($debugUserId === '' || !preg_match('/^\d+$/', $debugUserId)) {
+			return null;
+		}
+
+		return $debugUserId;
+	}
+
 	private function extractInitData(Request $request): ?string
 	{
-		$header = $request->header('X-TG-INIT-DATA');
+		// Canonical header (new): X-Tg-Init-Data
+		$header = $request->header('X-Tg-Init-Data');
 		if (is_string($header) && trim($header) !== '') {
-			return $header;
+			return trim($header);
+		}
+
+		// Legacy header (current frontend): X-TG-INIT-DATA
+		$legacyHeader = $request->header('X-TG-INIT-DATA');
+		if (is_string($legacyHeader) && trim($legacyHeader) !== '') {
+			return trim($legacyHeader);
 		}
 
 		$body = $request->input('initData');
 		if (is_string($body) && trim($body) !== '') {
-			return $body;
+			return trim($body);
 		}
 
 		return null;
 	}
 
-	private function mapLanguageCodeToLocale(string $languageCode): string
+	private function applyLocale(Request $request, string $languageCode, bool $allowEmptyPrimary): void
 	{
-		$supportedLocales = ['ru', 'uk', 'en'];
-		$defaultLocale = config('app.locale', 'en');
+		$primary = $this->mapLanguageCodeToLocale($languageCode, $allowEmptyPrimary);
+		$override = $this->extractLocaleOverride($request);
+
+		$locale = $override ?? $primary;
+
+		app()->setLocale($locale);
+		$request->attributes->set('locale', $locale);
+	}
+
+	private function extractLocaleOverride(Request $request): ?string
+	{
+		$header = $request->header('X-Tg-Lang');
+		if (!is_string($header)) {
+			return null;
+		}
+
+		$header = strtolower(trim($header));
+		if ($header === '') {
+			return null;
+		}
+
+		$allowed = (array) config('accesshub.webapp.allowed_langs', ['ru', 'uk', 'en']);
+		if (in_array($header, $allowed, true)) {
+			return $header;
+		}
+
+		return null;
+	}
+
+	private function mapLanguageCodeToLocale(string $languageCode, bool $allowEmpty): string
+	{
+		$supportedLocales = (array) config('accesshub.webapp.allowed_langs', ['ru', 'uk', 'en']);
+		$defaultLocale = (string) config('app.locale', 'ru');
 
 		if ($languageCode === '') {
+			if ($allowEmpty) {
+				return $defaultLocale;
+			}
+
 			return $defaultLocale;
 		}
 
@@ -114,6 +187,25 @@ final class VerifyTelegramWebAppInitData
 		return $defaultLocale;
 	}
 
+	private function attachUserAndAuthorize(Request $request, string $telegramId): ?Response
+	{
+		$request->attributes->set('telegram_id', $telegramId);
+
+		$denyByDefault = (bool) config('accesshub.deny_by_default', true);
+
+		$dbUser = TelegramUser::query()
+			->where('telegram_id', $telegramId)
+			->where('is_active', true)
+			->first();
+
+		if ($denyByDefault && $dbUser === null) {
+			return $this->jsonError('FORBIDDEN', 'no access', 403);
+		}
+
+		$request->attributes->set('telegram_user', $dbUser);
+		return null;
+	}
+
 	private function jsonError(string $code, string $message, int $status): Response
 	{
 		return response()->json([
@@ -125,3 +217,4 @@ final class VerifyTelegramWebAppInitData
 		], $status);
 	}
 }
+

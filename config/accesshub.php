@@ -42,5 +42,17 @@ return [
 	|--------------------------------------------------------------------------
 	*/
 	'webapp_init_data_ttl' => (int) env('ACCESSHUB_WEBAPP_TTL', 86400),
+
+	/*
+	|--------------------------------------------------------------------------
+	| WebApp (Mini App) helpers
+	|--------------------------------------------------------------------------
+	| Debug bypass is for local/dev only.
+	*/
+	'webapp' => [
+		'debug_allow_header' => (bool) env('ACCESSHUB_WEBAPP_DEBUG', false),
+		'allowed_langs' => ['ru', 'uk', 'en'],
+	],
 ];
+
 
