@@ -22,7 +22,7 @@ return [
 		'ok' => '✅ ОК',
 	],
 	'replies' => [
-		'welcome' => "Ласкаво просимо до AccessHub!\n\nВикористовуйте кнопки меню для навігації.",
+		'welcome' => "Welcome to AccessHub!\n\nUse menu buttons for navigation.",
 		'access_denied' => 'Немає доступу. Зверніться до адміністратора.',
 		'error_generic' => 'Сталася помилка. Спробуйте пізніше.',
 		'no_permission' => 'Немає прав.',
