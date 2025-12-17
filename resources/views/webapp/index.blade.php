@@ -412,6 +412,7 @@
 
 		const initData = tg.initData || '';
 		const user = tg.initDataUnsafe?.user;
+		const tgLang = user?.language_code ? String(user.language_code).slice(0, 2).toLowerCase() : '';
 
 		// Update TG ID after translations are loaded (in init())
 
@@ -464,6 +465,7 @@
 				method: 'GET',
 				headers: {
 					'X-TG-INIT-DATA': initData,
+					...(tgLang ? { 'X-Tg-Lang': tgLang } : {}),
 					'Accept': 'application/json',
 				},
 			});
@@ -497,6 +499,7 @@
 				method: 'POST',
 				headers: {
 					'X-TG-INIT-DATA': initData,
+					...(tgLang ? { 'X-Tg-Lang': tgLang } : {}),
 					'Accept': 'application/json',
 					'Content-Type': 'application/json',
 				},
@@ -1180,6 +1183,7 @@
 				method: 'GET',
 				headers: {
 					'X-TG-INIT-DATA': initData,
+					...(tgLang ? { 'X-Tg-Lang': tgLang } : {}),
 				},
 			});
 
