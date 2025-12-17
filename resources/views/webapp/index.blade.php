@@ -511,7 +511,7 @@
 			if (!resp.ok || !data) {
 				const message = data?.error?.message || 'API request failed';
 				if (resp.status === 403 || message === 'no access') {
-					throw new Error('Нет доступа. Обратитесь к администратору.');
+					throw new Error(t('no_access'));
 				}
 				if (resp.status === 401) {
 					throw new Error(t('auth_error'));
@@ -522,10 +522,21 @@
 			if (data.ok !== true) {
 				const message = data?.error?.message || 'API error';
 				if (data?.error?.code === 'FORBIDDEN' || message === 'no access') {
-					throw new Error('Нет доступа. Обратитесь к администратору.');
+					throw new Error(t('no_access'));
 				}
-				const fields = data?.error?.fields ? JSON.stringify(data.error.fields) : '';
-				throw new Error(message + (fields ? (' ' + fields) : ''));
+				const fieldsObj = data?.error?.fields;
+				if (fieldsObj && typeof fieldsObj === 'object') {
+					const lines = [];
+					for (const [field, msgs] of Object.entries(fieldsObj)) {
+						if (Array.isArray(msgs)) {
+							lines.push(`${field}: ${msgs.join(', ')}`);
+						} else {
+							lines.push(`${field}: ${String(msgs)}`);
+						}
+					}
+					throw new Error(message + (lines.length ? ('\n' + lines.join('\n')) : ''));
+				}
+				throw new Error(message);
 			}
 
 			return data;
@@ -818,10 +829,16 @@
 							});
 						} else {
 							// Other API calls: regular rendering
+						const method = String(tab.submit.method || 'GET').toUpperCase();
+
+						let resp;
+						if (method === 'POST') {
+							resp = await apiPost(endpoint, payload);
+						} else {
 							const query = buildQuery(payload);
 							const url = query ? (endpoint + '?' + query) : endpoint;
-
-							const resp = await apiGet(url);
+							resp = await apiGet(url);
+						}
 
 							resultBox.innerHTML = '';
 							renderApiResult(resp, resultBox, endpoint, payload);

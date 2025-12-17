@@ -27,7 +27,8 @@ final class HistoryController extends Controller
 
 		$query = IssuanceLog::query()
 			->where('operator_telegram_id', $telegramId)
-			->orderByDesc('issued_at');
+			->orderByDesc('issued_at')
+			->orderByDesc('id');
 
 		if ($orderId !== '') {
 			$query->where('order_id', $orderId);

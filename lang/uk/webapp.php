@@ -48,6 +48,25 @@ return [
 			'title' => 'Адмін: Експорт',
 			'content' => "Посилання:\n— /webapp/api/admin/export/accounts.csv\n— /webapp/api/admin/export/issuance_logs.csv",
 		],
+		'admin_logs' => [
+			'title' => 'Адмін: Логи',
+			'header' => [
+				'title' => 'Логи',
+				'subtitle' => 'Журнал видач',
+			],
+			'fields' => [
+				'account_id' => 'Account ID (опціонально)',
+				'order_id' => 'Order ID (опціонально)',
+				'operator_id' => 'TG оператора (опціонально)',
+			],
+		],
+		'admin_stats' => [
+			'title' => 'Адмін: Статистика',
+			'header' => [
+				'title' => 'Статистика',
+				'subtitle' => 'Поточні показники',
+			],
+		],
 	],
 	'ui' => [
 		'submit' => 'Відправити',
@@ -68,5 +87,15 @@ return [
 		'downloaded' => ':file завантажено',
 		'no_access' => 'Немає доступу. Зверніться до адміністратора для додавання в систему.',
 		'auth_error' => 'Помилка авторизації. Перезавантажте WebApp.',
+	],
+	'errors' => [
+		'validation_failed' => 'Перевірте поля форми.',
+		'required' => 'Поле ":attribute" є обовʼязковим.',
+		'integer' => 'Поле ":attribute" має бути числом.',
+		'min' => 'Поле ":attribute" має бути не менше :min.',
+		'max' => 'Поле ":attribute" має бути не більше :max.',
+		'regex' => 'Невірний формат поля ":attribute".',
+		'not_enough_accounts' => 'Недостатньо вільних акаунтів: доступно :available, потрібно :needed.',
+		'server_error' => 'Помилка сервера. Спробуйте пізніше.',
 	],
 ];

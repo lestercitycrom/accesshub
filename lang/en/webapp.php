@@ -48,6 +48,25 @@ return [
 			'title' => 'Admin: Export',
 			'content' => "Links:\n— /webapp/api/admin/export/accounts.csv\n— /webapp/api/admin/export/issuance_logs.csv",
 		],
+		'admin_logs' => [
+			'title' => 'Admin: Logs',
+			'header' => [
+				'title' => 'Logs',
+				'subtitle' => 'Issuance log search',
+			],
+			'fields' => [
+				'account_id' => 'Account ID (optional)',
+				'order_id' => 'Order ID (optional)',
+				'operator_id' => 'Operator TG ID (optional)',
+			],
+		],
+		'admin_stats' => [
+			'title' => 'Admin: Stats',
+			'header' => [
+				'title' => 'Stats',
+				'subtitle' => 'Current totals',
+			],
+		],
 	],
 	'ui' => [
 		'submit' => 'Submit',
@@ -68,5 +87,15 @@ return [
 		'downloaded' => ':file downloaded',
 		'no_access' => 'No access. Contact administrator to be added to the system.',
 		'auth_error' => 'Authorization error. Reload WebApp.',
+	],
+	'errors' => [
+		'validation_failed' => 'Please check the form fields.',
+		'required' => 'The :attribute field is required.',
+		'integer' => 'The :attribute must be an integer.',
+		'min' => 'The :attribute must be at least :min.',
+		'max' => 'The :attribute must be at most :max.',
+		'regex' => 'The :attribute format is invalid.',
+		'not_enough_accounts' => 'Not enough available accounts: available :available, needed :needed.',
+		'server_error' => 'Server error. Please try again later.',
 	],
 ];

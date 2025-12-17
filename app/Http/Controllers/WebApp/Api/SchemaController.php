@@ -32,7 +32,13 @@ use Illuminate\Routing\Controller;
 						'title' => __('webapp.tabs.issue.header.title'),
 						'subtitle' => __('webapp.tabs.issue.header.subtitle'),
 					],
-					'submit' => ['type' => 'bot', 'action' => 'issue'],
+					'submit' => [
+						'type' => 'api',
+						'endpoint' => '/api/webapp/api/issue',
+						'method' => 'POST',
+						// Fallback only (UI should not use it as main path)
+						'fallback' => ['type' => 'bot_action', 'action' => 'issue'],
+					],
 					'fields' => [
 						['name' => 'order_id', 'label' => __('webapp.tabs.issue.fields.order_id'), 'placeholder' => __('webapp.tabs.issue.fields.order_id'), 'type' => 'text', 'required' => true, 'pattern' => '^\\d+$'],
 						['name' => 'game', 'label' => __('webapp.tabs.issue.fields.game'), 'placeholder' => __('webapp.tabs.issue.fields.game'), 'type' => 'text', 'required' => true],
@@ -77,6 +83,34 @@ use Illuminate\Routing\Controller;
 						['name' => 'platform', 'label' => __('webapp.tabs.issue.fields.platform'), 'placeholder' => __('webapp.tabs.admin_find.fields.platform'), 'type' => 'text', 'required' => false],
 						['name' => 'status', 'label' => __('webapp.tabs.admin_find.fields.status'), 'placeholder' => __('webapp.tabs.admin_find.fields.status'), 'type' => 'text', 'required' => false],
 					],
+				],
+				[
+					'id' => 'admin_logs',
+					'title' => __('webapp.tabs.admin_logs.title'),
+					'roles' => ['admin'],
+					'header' => [
+						'icon' => '🧾',
+						'title' => __('webapp.tabs.admin_logs.header.title'),
+						'subtitle' => __('webapp.tabs.admin_logs.header.subtitle'),
+					],
+					'submit' => ['type' => 'api', 'endpoint' => '/api/webapp/api/admin/logs'],
+					'fields' => [
+						['name' => 'account_id', 'label' => __('webapp.tabs.admin_logs.fields.account_id'), 'placeholder' => __('webapp.tabs.admin_logs.fields.account_id'), 'type' => 'text', 'required' => false],
+						['name' => 'order_id', 'label' => __('webapp.tabs.admin_logs.fields.order_id'), 'placeholder' => __('webapp.tabs.admin_logs.fields.order_id'), 'type' => 'text', 'required' => false],
+						['name' => 'operator_id', 'label' => __('webapp.tabs.admin_logs.fields.operator_id'), 'placeholder' => __('webapp.tabs.admin_logs.fields.operator_id'), 'type' => 'text', 'required' => false],
+					],
+				],
+				[
+					'id' => 'admin_stats',
+					'title' => __('webapp.tabs.admin_stats.title'),
+					'roles' => ['admin'],
+					'header' => [
+						'icon' => '📊',
+						'title' => __('webapp.tabs.admin_stats.header.title'),
+						'subtitle' => __('webapp.tabs.admin_stats.header.subtitle'),
+					],
+					'submit' => ['type' => 'api', 'endpoint' => '/api/webapp/api/admin/stats'],
+					'fields' => [],
 				],
 				[
 					'id' => 'admin_export',
