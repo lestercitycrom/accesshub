@@ -19,3 +19,5 @@ trait RequiresAdmin
 		return $role === 'admin';
 	}
 }
+
+

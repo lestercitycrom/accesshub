@@ -100,3 +100,5 @@ final class DiagnoseLoggingCommand extends Command
 	}
 }
 
+
+

@@ -176,3 +176,5 @@ use Illuminate\Routing\Controller;
 		]);
 	}
 }
+
+

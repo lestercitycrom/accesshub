@@ -73,3 +73,5 @@ final class LogsController extends Controller
 		return is_string($v) ? trim($v) : '';
 	}
 }
+
+

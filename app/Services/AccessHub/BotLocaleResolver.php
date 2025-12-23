@@ -69,3 +69,5 @@ final class BotLocaleResolver
 		return self::DEFAULT_LOCALE;
 	}
 }
+
+

@@ -610,3 +610,5 @@ HAVING duplicates > 1;
 - Тестирование шага 2: `docs/step2.md`
 - Буфер разработки: `docs/buffer.md`
 
+
+

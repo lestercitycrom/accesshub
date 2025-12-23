@@ -97,3 +97,5 @@ final class TelegramWebAppInitDataValidator
 		return implode("\n", $lines);
 	}
 }
+
+
