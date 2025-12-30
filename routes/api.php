@@ -7,6 +7,7 @@ use App\Http\Controllers\WebApp\Api\Admin\AccountsController;
 use App\Http\Controllers\WebApp\Api\Admin\ExportAccountsController;
 use App\Http\Controllers\WebApp\Api\Admin\ExportIssuanceLogsController;
 use App\Http\Controllers\WebApp\Api\Admin\FindController;
+use App\Http\Controllers\WebApp\Api\Admin\ImportFileController;
 use App\Http\Controllers\WebApp\Api\Admin\ImportTextController;
 use App\Http\Controllers\WebApp\Api\Admin\LogsController;
 use App\Http\Controllers\WebApp\Api\Admin\StatsController;
@@ -32,6 +33,7 @@ Route::prefix('webapp/api')->middleware(['tg.webapp'])->group(function (): void 
 		Route::post('/accounts/{accountId}/reset', [AccountsController::class, 'resetAvailability'])->whereNumber('accountId');
 		Route::post('/accounts/{accountId}/cooldown', [AccountsController::class, 'forceCooldown'])->whereNumber('accountId');
 		Route::post('/import/text', ImportTextController::class);
+		Route::post('/import/file', ImportFileController::class);
 		Route::get('/find', FindController::class);
 		Route::get('/logs', LogsController::class);
 		Route::get('/stats', StatsController::class);
@@ -43,6 +45,8 @@ Route::prefix('webapp/api')->middleware(['tg.webapp'])->group(function (): void 
 		Route::get('/export/issuance_logs.csv', ExportIssuanceLogsController::class);
 	});
 });
+
+
 
 
 

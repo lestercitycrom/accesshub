@@ -339,14 +339,17 @@ final class AccessHubBotService
 	}
 
 	/**
-	 * @param array{added: int, skipped: int, errors: int} $stat
+	 * @param array{added: int, skipped: int, errors: array<int, array{row: int, reason: string}>|int} $stat
 	 */
 	private function formatImportResult(array $stat): string
 	{
+		$errors = $stat['errors'] ?? [];
+		$errorsCount = is_array($errors) ? count($errors) : (int) $errors;
+
 		return __('bot.admin.import_result', [
-			'added' => $stat['added'],
-			'skipped' => $stat['skipped'],
-			'errors' => $stat['errors'],
+			'added' => $stat['added'] ?? 0,
+			'skipped' => $stat['skipped'] ?? 0,
+			'errors' => $errorsCount,
 		]);
 	}
 
@@ -510,6 +513,11 @@ final class AccessHubBotService
 			->first();
 	}
 }
+
+
+
+
+
 
 
 

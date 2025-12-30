@@ -10,12 +10,16 @@ return [
 	| Пока можно работать без списка платформ.
 	| Позже включим enforce_platform_list и дадим строгий список.
 	*/
+	// TODO: Replace with final customer-approved list
+	// If empty array [] → platform validation is disabled (accept any non-empty value)
+	// If not empty → strict validation (only values from this list are allowed)
 	'platforms' => [
-		'PS',
-		'Xbox',
-		'Steam',
-		'Epic',
-		'Nintendo',
+		// Empty by default until final list is provided by customer
+		// 'PS',
+		// 'Xbox',
+		// 'Steam',
+		// 'Epic',
+		// 'Nintendo',
 	],
 
 	'enforce_platform_list' => false,
@@ -54,6 +58,11 @@ return [
 		'allowed_langs' => ['ru', 'uk', 'en'],
 	],
 ];
+
+
+
+
+
 
 
 

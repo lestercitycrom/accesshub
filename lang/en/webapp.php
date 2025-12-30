@@ -75,7 +75,15 @@ return [
 			],
 			'fields' => [
 				'text' => 'Import data',
+				'file' => 'Import file',
 			],
+		],
+		'admin_settings' => [
+			'title' => 'Admin: Settings',
+			'header' => [
+				'title' => 'Settings',
+			],
+			'content' => 'Settings will be added later.',
 		],
 	],
 	'ui' => [
@@ -89,12 +97,28 @@ return [
 		'no_data' => 'No data',
 		'page_of' => 'Page :page of :total',
 		'role' => 'Role: :role',
-		'tg_id' => 'TG: :id',
+		'tg_id' => 'TG ID: :id',
 		'order' => 'Order: :id',
 		'account_id' => 'Account ID: :id',
 		'download_accounts' => 'Download accounts.csv',
 		'download_logs' => 'Download issuance_logs.csv',
 		'downloaded' => ':file downloaded',
+		'export_filters' => [
+			'date_from' => 'Date from',
+			'date_to' => 'Date to',
+			'operator_telegram_id' => 'Operator ID',
+			'game' => 'Game',
+			'platform' => 'Platform',
+			'order_id' => 'Order ID',
+		],
+		'export_filters_placeholders' => [
+			'date_from' => 'YYYY-MM-DD',
+			'date_to' => 'YYYY-MM-DD',
+			'operator_telegram_id' => 'Telegram ID',
+			'game' => 'Game name',
+			'platform' => 'Platform name',
+			'order_id' => 'Order ID',
+		],
 		'no_access' => 'No access. Contact administrator to be added to the system.',
 		'auth_error' => 'Authorization error. Reload WebApp.',
 	],
@@ -106,9 +130,17 @@ return [
 		'min' => 'The :attribute must be at least :min.',
 		'max' => 'The :attribute must be at most :max.',
 		'regex' => 'The :attribute format is invalid.',
+		'file' => 'The :attribute must be a file.',
+		'mimes' => 'The :attribute must be a file of type: :values.',
+		'invalid_file_type' => 'Unsupported file type. Allowed: TXT, CSV, XLSX.',
 		'not_enough_accounts' => 'Not enough available accounts: available :available, needed :needed.',
 		'server_error' => 'Server error. Please try again later.',
 	],
 ];
+
+
+
+
+
 
 

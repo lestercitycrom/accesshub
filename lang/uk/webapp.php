@@ -75,7 +75,15 @@ return [
 			],
 			'fields' => [
 				'text' => 'Дані для імпорту',
+				'file' => 'Файл для імпорту',
 			],
+		],
+		'admin_settings' => [
+			'title' => 'Адмін: Налаштування',
+			'header' => [
+				'title' => 'Налаштування',
+			],
+			'content' => 'Налаштування будуть додані пізніше.',
 		],
 	],
 	'ui' => [
@@ -88,13 +96,29 @@ return [
 		'total' => 'Всього: :count',
 		'no_data' => 'Немає даних',
 		'page_of' => 'Стор. :page з :total',
-		'role' => 'Role: :role',
-		'tg_id' => 'TG: :id',
-		'order' => 'Order: :id',
-		'account_id' => 'Account ID: :id',
+		'role' => 'Роль: :role',
+		'tg_id' => 'TG ID: :id',
+		'order' => 'Замовлення: :id',
+		'account_id' => 'ID акаунта: :id',
 		'download_accounts' => 'Завантажити accounts.csv',
 		'download_logs' => 'Завантажити issuance_logs.csv',
 		'downloaded' => ':file завантажено',
+		'export_filters' => [
+			'date_from' => 'Дата від',
+			'date_to' => 'Дата до',
+			'operator_telegram_id' => 'ID оператора',
+			'game' => 'Гра',
+			'platform' => 'Платформа',
+			'order_id' => 'ID замовлення',
+		],
+		'export_filters_placeholders' => [
+			'date_from' => 'РРРР-ММ-ДД',
+			'date_to' => 'РРРР-ММ-ДД',
+			'operator_telegram_id' => 'Telegram ID',
+			'game' => 'Назва гри',
+			'platform' => 'Назва платформи',
+			'order_id' => 'ID замовлення',
+		],
 		'no_access' => 'Немає доступу. Зверніться до адміністратора для додавання в систему.',
 		'auth_error' => 'Помилка авторизації. Перезавантажте WebApp.',
 	],
@@ -106,9 +130,17 @@ return [
 		'min' => 'Поле ":attribute" має бути не менше :min.',
 		'max' => 'Поле ":attribute" має бути не більше :max.',
 		'regex' => 'Невірний формат поля ":attribute".',
+		'file' => 'Поле ":attribute" має бути файлом.',
+		'mimes' => 'Поле ":attribute" має бути файлом одного з типів: :values.',
+		'invalid_file_type' => 'Непідтримуваний тип файлу. Дозволені: TXT, CSV, XLSX.',
 		'not_enough_accounts' => 'Недостатньо вільних акаунтів: доступно :available, потрібно :needed.',
 		'server_error' => 'Помилка сервера. Спробуйте пізніше.',
 	],
 ];
+
+
+
+
+
 
 

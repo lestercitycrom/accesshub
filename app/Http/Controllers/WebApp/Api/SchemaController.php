@@ -57,7 +57,7 @@ use Illuminate\Routing\Controller;
 					],
 					'submit' => ['type' => 'api', 'endpoint' => '/api/webapp/api/history'],
 					'fields' => [
-						['name' => 'order_id', 'label' => 'Order ID', 'placeholder' => __('webapp.tabs.history.fields.order_id'), 'type' => 'text', 'required' => false],
+						['name' => 'order_id', 'label' => __('webapp.tabs.history.fields.order_id'), 'placeholder' => __('webapp.tabs.history.fields.order_id'), 'type' => 'text', 'required' => false],
 					],
 				],
 				[
@@ -137,6 +137,14 @@ use Illuminate\Routing\Controller;
 					'type' => 'static',
 					'content' => __('webapp.tabs.admin_export.content'),
 				],
+				[
+					'id' => 'admin_settings',
+					'title' => __('webapp.tabs.admin_settings.title'),
+					'roles' => ['admin'],
+					'type' => 'static',
+					'header' => ['icon' => '⚙️', 'title' => __('webapp.tabs.admin_settings.header.title')],
+					'content' => __('webapp.tabs.admin_settings.content'),
+				],
 			],
 		];
 
@@ -166,6 +174,22 @@ use Illuminate\Routing\Controller;
 			'downloaded' => __('webapp.ui.downloaded'),
 			'no_access' => __('webapp.ui.no_access'),
 			'auth_error' => __('webapp.ui.auth_error'),
+			'export_filters' => [
+				'date_from' => __('webapp.ui.export_filters.date_from'),
+				'date_to' => __('webapp.ui.export_filters.date_to'),
+				'operator_telegram_id' => __('webapp.ui.export_filters.operator_telegram_id'),
+				'game' => __('webapp.ui.export_filters.game'),
+				'platform' => __('webapp.ui.export_filters.platform'),
+				'order_id' => __('webapp.ui.export_filters.order_id'),
+			],
+			'export_filters_placeholders' => [
+				'date_from' => __('webapp.ui.export_filters_placeholders.date_from'),
+				'date_to' => __('webapp.ui.export_filters_placeholders.date_to'),
+				'operator_telegram_id' => __('webapp.ui.export_filters_placeholders.operator_telegram_id'),
+				'game' => __('webapp.ui.export_filters_placeholders.game'),
+				'platform' => __('webapp.ui.export_filters_placeholders.platform'),
+				'order_id' => __('webapp.ui.export_filters_placeholders.order_id'),
+			],
 		];
 
 		return $this->ok([
@@ -176,5 +200,10 @@ use Illuminate\Routing\Controller;
 		]);
 	}
 }
+
+
+
+
+
 
 

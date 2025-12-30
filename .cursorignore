@@ -1,0 +1,28 @@
+# PHP / Laravel
+/vendor/
+/storage/
+/bootstrap/cache/
+/public/storage/
+/.env
+/.phpunit.result.cache
+
+# Node / Frontend
+/node_modules/
+/public/build/
+/dist/
+/build/
+/.vite/
+
+# Logs / temp
+*.log
+/tmp/
+/temp/
+
+# IDE
+/.idea/
+/.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+

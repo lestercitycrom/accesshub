@@ -662,16 +662,14 @@
 
 				if (f.type === 'textarea') {
 					input = document.createElement('textarea');
-					input.rows = 5;
+					input.rows = 8;
+				} else if (f.type === 'file') {
+					input = document.createElement('input');
+					input.type = 'file';
+					input.accept = f.accept || '.txt,.csv,.xlsx';
 				} else {
 					input = document.createElement('input');
-					if (f.type === 'textarea') {
-						input = document.createElement('textarea');
-						input.className = 'form-control';
-						input.rows = 8;
-					} else {
-						input.type = (f.type === 'number') ? 'number' : 'text';
-					}
+					input.type = (f.type === 'number') ? 'number' : 'text';
 				}
 
 				input.className = 'form-control';
@@ -759,15 +757,22 @@
 			const handleSubmit = async (e) => {
 				if (e) e.preventDefault();
 
-				const payload = {};
 				const fd = new FormData(form);
-				fd.forEach((v, k) => payload[k] = v);
-
-				// Ensure numbers
-				for (const f of fields) {
-					if (f.type === 'number' && payload[f.name] !== undefined) {
-						const n = parseInt(String(payload[f.name]), 10);
-						payload[f.name] = Number.isFinite(n) ? n : 0;
+				
+				// Check if form has file input
+				const hasFile = Array.from(fields).some(f => f.type === 'file');
+				
+				const payload = {};
+				if (!hasFile) {
+					// Regular form: convert to object
+					fd.forEach((v, k) => payload[k] = v);
+					
+					// Ensure numbers
+					for (const f of fields) {
+						if (f.type === 'number' && payload[f.name] !== undefined) {
+							const n = parseInt(String(payload[f.name]), 10);
+							payload[f.name] = Number.isFinite(n) ? n : 0;
+						}
 					}
 				}
 
@@ -839,15 +844,53 @@
 
 						let resp;
 						if (method === 'POST') {
-							resp = await apiPost(endpoint, payload);
+							if (hasFile) {
+								// File upload: use FormData
+								resp = await fetch(endpoint, {
+									method: 'POST',
+									headers: {
+										'X-TG-INIT-DATA': initData,
+										...(tgLang ? { 'X-Tg-Lang': tgLang } : {}),
+										'Accept': 'application/json',
+									},
+									body: fd,
+								});
+							} else {
+								resp = await apiPost(endpoint, payload);
+							}
 						} else {
 							const query = buildQuery(payload);
 							const url = query ? (endpoint + '?' + query) : endpoint;
 							resp = await apiGet(url);
 						}
 
+							const data = hasFile ? (await resp.json().catch(() => null)) : resp;
+							
+							if (hasFile && (!resp.ok || !data)) {
+								const message = data?.error?.message || 'API request failed';
+								if (resp.status === 403 || message === 'no access') {
+									throw new Error(t('no_access'));
+								}
+								if (resp.status === 401) {
+									throw new Error(t('auth_error'));
+								}
+								const fieldsObj = data?.error?.fields;
+								if (fieldsObj && typeof fieldsObj === 'object') {
+									const lines = [];
+									for (const [field, msgs] of Object.entries(fieldsObj)) {
+										if (Array.isArray(msgs)) {
+											lines.push(`${field}: ${msgs.join(', ')}`);
+										} else {
+											lines.push(`${field}: ${String(msgs)}`);
+										}
+									}
+									throw new Error(message + (lines.length ? ('\n' + lines.join('\n')) : ''));
+								}
+								throw new Error(message);
+							}
+
 							resultBox.innerHTML = '';
-							renderApiResult(resp, resultBox, endpoint, payload);
+							renderApiResult(hasFile ? data : resp, resultBox, endpoint, payload);
 						}
 						return;
 					}
@@ -1258,12 +1301,12 @@
 			logsForm.style.marginBottom = '0.5rem';
 
 			const fields = [
-				{ name: 'date_from', label: 'Date from', type: 'date', placeholder: 'YYYY-MM-DD' },
-				{ name: 'date_to', label: 'Date to', type: 'date', placeholder: 'YYYY-MM-DD' },
-				{ name: 'operator_telegram_id', label: 'Operator ID', type: 'text', placeholder: 'Telegram ID' },
-				{ name: 'game', label: 'Game', type: 'text', placeholder: 'Game name' },
-				{ name: 'platform', label: 'Platform', type: 'text', placeholder: 'Platform name' },
-				{ name: 'order_id', label: 'Order ID', type: 'text', placeholder: 'Order ID' },
+				{ name: 'date_from', label: t('export_filters.date_from'), type: 'date', placeholder: t('export_filters_placeholders.date_from') },
+				{ name: 'date_to', label: t('export_filters.date_to'), type: 'date', placeholder: t('export_filters_placeholders.date_to') },
+				{ name: 'operator_telegram_id', label: t('export_filters.operator_telegram_id'), type: 'text', placeholder: t('export_filters_placeholders.operator_telegram_id') },
+				{ name: 'game', label: t('export_filters.game'), type: 'text', placeholder: t('export_filters_placeholders.game') },
+				{ name: 'platform', label: t('export_filters.platform'), type: 'text', placeholder: t('export_filters_placeholders.platform') },
+				{ name: 'order_id', label: t('export_filters.order_id'), type: 'text', placeholder: t('export_filters_placeholders.order_id') },
 			];
 
 			fields.forEach(field => {
@@ -1474,5 +1517,10 @@
 </script>
 </body>
 </html>
+
+
+
+
+
 
 

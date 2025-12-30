@@ -75,7 +75,15 @@ return [
 			],
 			'fields' => [
 				'text' => 'Данные для импорта',
+				'file' => 'Файл для импорта',
 			],
+		],
+		'admin_settings' => [
+			'title' => 'Админ: Настройки',
+			'header' => [
+				'title' => 'Настройки',
+			],
+			'content' => 'Настройки будут добавлены позже.',
 		],
 	],
 	'ui' => [
@@ -88,13 +96,29 @@ return [
 		'total' => 'Всего: :count',
 		'no_data' => 'Нет данных',
 		'page_of' => 'Стр. :page из :total',
-		'role' => 'Role: :role',
-		'tg_id' => 'TG: :id',
-		'order' => 'Order: :id',
-		'account_id' => 'Account ID: :id',
+		'role' => 'Роль: :role',
+		'tg_id' => 'TG ID: :id',
+		'order' => 'Заказ: :id',
+		'account_id' => 'ID аккаунта: :id',
 		'download_accounts' => 'Скачать accounts.csv',
 		'download_logs' => 'Скачать issuance_logs.csv',
 		'downloaded' => ':file скачан',
+		'export_filters' => [
+			'date_from' => 'Дата от',
+			'date_to' => 'Дата до',
+			'operator_telegram_id' => 'ID оператора',
+			'game' => 'Игра',
+			'platform' => 'Платформа',
+			'order_id' => 'ID заказа',
+		],
+		'export_filters_placeholders' => [
+			'date_from' => 'ГГГГ-ММ-ДД',
+			'date_to' => 'ГГГГ-ММ-ДД',
+			'operator_telegram_id' => 'Telegram ID',
+			'game' => 'Название игры',
+			'platform' => 'Название платформы',
+			'order_id' => 'ID заказа',
+		],
 		'no_access' => 'Нет доступа. Обратитесь к администратору для добавления в систему.',
 		'auth_error' => 'Ошибка авторизации. Перезагрузите WebApp.',
 	],
@@ -106,9 +130,17 @@ return [
 		'min' => 'Поле ":attribute" должно быть не меньше :min.',
 		'max' => 'Поле ":attribute" должно быть не больше :max.',
 		'regex' => 'Поле ":attribute" заполнено неверно.',
+		'file' => 'Поле ":attribute" должно быть файлом.',
+		'mimes' => 'Поле ":attribute" должно быть файлом одного из типов: :values.',
+		'invalid_file_type' => 'Неподдерживаемый тип файла. Разрешены: TXT, CSV, XLSX.',
 		'not_enough_accounts' => 'Недостаточно свободных аккаунтов: доступно :available, нужно :needed.',
 		'server_error' => 'Ошибка сервера. Попробуйте позже.',
 	],
 ];
+
+
+
+
+
 
 

@@ -54,9 +54,14 @@ final class ImportTextController extends Controller
 		return $this->ok([
 			'added' => (int) ($stat['added'] ?? 0),
 			'skipped' => (int) ($stat['skipped'] ?? 0),
-			'errors' => (int) ($stat['errors'] ?? 0),
+			'errors' => is_array($stat['errors'] ?? null) ? $stat['errors'] : [],
 		], 'Import finished');
 	}
 }
+
+
+
+
+
 
 
