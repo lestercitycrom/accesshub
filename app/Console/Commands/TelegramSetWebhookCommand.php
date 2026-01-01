@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 final class TelegramSetWebhookCommand extends Command
 {
-	protected $signature = 'telegram:set-webhook {--url= : Webhook URL (defaults to APP_URL/telegram/webhook)}';
+	protected $signature = 'telegram:set-webhook {--url= : Webhook URL (defaults to APP_URL/api/telegram/webhook)}';
 	protected $description = 'Set Telegram bot webhook URL with secret token.';
 
 	public function handle(): int
@@ -34,7 +34,7 @@ final class TelegramSetWebhookCommand extends Command
 				$this->error('APP_URL is not set or is localhost. Please provide --url option or set APP_URL in .env');
 				return self::FAILURE;
 			}
-			$url = rtrim($appUrl, '/') . '/telegram/webhook';
+			$url = rtrim($appUrl, '/') . '/api/telegram/webhook';
 		}
 
 		$this->info("Setting webhook...");
