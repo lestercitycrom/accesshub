@@ -307,19 +307,38 @@ sudo supervisorctl start accesshub-worker:*
 
 ## Шаг 11: Настройка Telegram Webhook
 
-После деплоя настройте webhook для Telegram бота:
+После деплоя настройте webhook для Telegram бота.
+
+**Важно:** Убедитесь, что в `.env` указаны:
+- `TELEGRAM_BOT_TOKEN` - токен вашего бота (получается от @BotFather)
+- `TELEGRAM_WEBHOOK_SECRET` - секретный ключ для защиты webhook
+- `APP_URL` - URL вашего домена (например, `https://your-domain.com`)
+
+### Способ 1: Использование команды artisan (рекомендуется)
 
 ```bash
-# Замените YOUR_BOT_TOKEN и YOUR_DOMAIN
+# Если APP_URL правильно настроен в .env:
+php artisan telegram:set-webhook
+
+# Или укажите URL вручную:
+php artisan telegram:set-webhook --url=https://your-domain.com/telegram/webhook
+```
+
+### Способ 2: Использование curl напрямую
+
+```bash
+# Замените YOUR_BOT_TOKEN, YOUR_DOMAIN и YOUR_WEBHOOK_SECRET
 curl -X POST "https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook" \
   -d "url=https://YOUR_DOMAIN.com/telegram/webhook" \
   -d "secret_token=YOUR_WEBHOOK_SECRET"
 ```
 
-Или используйте команду (если она есть в проекте):
+### Проверка установки webhook
+
+После установки проверьте текущий webhook:
 
 ```bash
-php artisan telegram:set-webhook
+curl "https://api.telegram.org/botYOUR_BOT_TOKEN/getWebhookInfo"
 ```
 
 ## Шаг 12: Проверка работоспособности
@@ -430,4 +449,6 @@ sudo supervisorctl restart accesshub-worker:*
 ---
 
 **Готово!** Ваше приложение должно быть доступно на хостинге.
+
+
 
