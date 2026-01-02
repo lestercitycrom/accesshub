@@ -247,6 +247,47 @@ final class AccessHubBotService
 			return;
 		}
 
+		// Add user command: /adduser TELEGRAM_ID [role]
+		if (str_starts_with($text, '/adduser')) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'));
+				return;
+			}
+
+			$parts = preg_split('/\s+/u', trim($text), 3);
+			if (count($parts) < 2) {
+				$this->telegram->sendMessage($chatId, __('bot.admin.adduser_help'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			$targetTelegramId = (string) $parts[1];
+			$role = isset($parts[2]) ? strtolower(trim($parts[2])) : 'operator';
+
+			$roleEnum = TelegramUserRole::tryFrom($role);
+			if ($roleEnum === null) {
+				$this->telegram->sendMessage($chatId, __('bot.admin.adduser_invalid_role'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			try {
+				TelegramUser::query()->updateOrCreate(
+					['telegram_id' => $targetTelegramId],
+					['role' => $roleEnum, 'is_active' => true]
+				);
+
+				$roleLabel = $roleEnum === TelegramUserRole::Admin ? __('bot.admin.role_admin') : __('bot.admin.role_operator');
+				$this->telegram->sendMessage(
+					$chatId,
+					__('bot.admin.adduser_success', ['telegram_id' => $targetTelegramId, 'role' => $roleLabel]),
+					$this->mainReplyKeyboard($user)
+				);
+			} catch (Throwable $e) {
+				Log::error('bot.adduser_failed', ['error' => $e->getMessage(), 'telegram_id' => $targetTelegramId]);
+				$this->telegram->sendMessage($chatId, __('bot.replies.error_generic'), $this->mainReplyKeyboard($user));
+			}
+			return;
+		}
+
 		// Future stubs (buttons only)
 		$btnFind = __('bot.menu.find');
 		$btnExport = __('bot.menu.export');
@@ -513,6 +554,8 @@ final class AccessHubBotService
 			->first();
 	}
 }
+
+
 
 
 

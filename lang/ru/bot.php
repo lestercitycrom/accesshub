@@ -48,6 +48,11 @@ return [
 		'logs_help' => "Логи:\nКоманда: /log <account_id>\nПример: /log 12",
 		'log_format' => "Формат: /log <account_id>\nПример: /log 12",
 		'import_result' => "Импорт:\nДобавлено: :added\nПропущено: :skipped\nОшибок: :errors",
+		'adduser_help' => "Добавить пользователя:\nКоманда: /adduser <telegram_id> [role]\nПример: /adduser 123456789 operator\nПример: /adduser 123456789 admin",
+		'adduser_invalid_role' => "Неверная роль. Используйте: admin или operator",
+		'adduser_success' => "✅ Пользователь добавлен!\nTelegram ID: :telegram_id\nРоль: :role",
+		'role_admin' => 'Администратор',
+		'role_operator' => 'Оператор',
 	],
 	'lang' => [
 		'select' => 'Выберите язык / Choose language / Оберіть мову:',
@@ -57,6 +62,8 @@ return [
 		'en' => '🇬🇧 English',
 	],
 ];
+
+
 
 
 

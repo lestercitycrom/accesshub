@@ -61,14 +61,6 @@ use Illuminate\Routing\Controller;
 					],
 				],
 				[
-					'id' => 'help',
-					'title' => __('webapp.tabs.help.title'),
-					'roles' => ['operator', 'admin'],
-					'type' => 'static',
-					'header' => ['icon' => 'ℹ️', 'title' => __('webapp.tabs.help.header.title')],
-					'content' => __('webapp.tabs.help.content'),
-				],
-				[
 					'id' => 'admin_find',
 					'title' => __('webapp.tabs.admin_find.title'),
 					'roles' => ['admin'],
@@ -137,14 +129,6 @@ use Illuminate\Routing\Controller;
 					'type' => 'static',
 					'content' => __('webapp.tabs.admin_export.content'),
 				],
-				[
-					'id' => 'admin_settings',
-					'title' => __('webapp.tabs.admin_settings.title'),
-					'roles' => ['admin'],
-					'type' => 'static',
-					'header' => ['icon' => '⚙️', 'title' => __('webapp.tabs.admin_settings.header.title')],
-					'content' => __('webapp.tabs.admin_settings.content'),
-				],
 			],
 		];
 
@@ -200,6 +184,8 @@ use Illuminate\Routing\Controller;
 		]);
 	}
 }
+
+
 
 
 
