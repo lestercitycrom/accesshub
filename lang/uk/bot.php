@@ -64,6 +64,7 @@ return [
 		'cannot_delete_self' => 'Не можна видалити себе',
 		'user_deleted' => 'Користувача видалено',
 		'users_refreshed' => 'Список оновлено',
+		'no_users' => 'Користувачів поки немає',
 	],
 	'lang' => [
 		'select' => 'Оберіть мову / Choose language / Выберите язык:',

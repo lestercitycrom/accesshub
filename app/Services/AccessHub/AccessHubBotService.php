@@ -129,10 +129,15 @@ final class AccessHubBotService
 				$this->addWizard->cancel($telegramId);
 			}
 			if ($user?->role !== TelegramUserRole::Admin) {
-				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'));
+				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'), $this->mainReplyKeyboard($user));
 				return;
 			}
-			$this->showUsersList($chatId, $user);
+			try {
+				$this->showUsersList($chatId, $user);
+			} catch (Throwable $e) {
+				Log::error('bot.showUsersList_failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+				$this->telegram->sendMessage($chatId, __('bot.replies.error_generic'), $this->mainReplyKeyboard($user));
+			}
 			return;
 		}
 
@@ -634,20 +639,24 @@ final class AccessHubBotService
 		$lines = [__('bot.admin.users_list_title') . "\n"];
 		$buttons = [];
 
-		foreach ($users as $u) {
-			$role = $u->role?->value ?? (string) $u->role;
-			$roleLabel = $role === 'admin' ? __('bot.admin.role_admin') : __('bot.admin.role_operator');
-			$status = $u->is_active ? '✅' : '❌';
-			$lines[] = "{$status} ID: {$u->telegram_id} ({$roleLabel})";
+		if ($users->isEmpty()) {
+			$lines[] = __('bot.admin.no_users');
+		} else {
+			foreach ($users as $u) {
+				$role = $u->role?->value ?? (string) $u->role;
+				$roleLabel = $role === 'admin' ? __('bot.admin.role_admin') : __('bot.admin.role_operator');
+				$status = $u->is_active ? '✅' : '❌';
+				$lines[] = "{$status} ID: {$u->telegram_id} ({$roleLabel})";
 
-			// Add delete button for each user (except self)
-			if ($u->telegram_id !== $user?->telegram_id) {
-				$buttons[] = [
-					[
-						'text' => __('bot.admin.delete_user', ['id' => $u->telegram_id]),
-						'callback_data' => 'user_delete_' . $u->telegram_id,
-					],
-				];
+				// Add delete button for each user (except self)
+				if ($u->telegram_id !== $user?->telegram_id) {
+					$buttons[] = [
+						[
+							'text' => __('bot.admin.delete_user', ['id' => $u->telegram_id]),
+							'callback_data' => 'user_delete_' . $u->telegram_id,
+						],
+					];
+				}
 			}
 		}
 
