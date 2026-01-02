@@ -119,7 +119,24 @@ final class AccessHubBotService
 			return;
 		}
 
-		// Wizard input (admin only)
+		// Fast buttons mapping (text UI) - use reverse lookup
+		$action = $this->botKb->findActionByLabel($text);
+
+		// Check for menu buttons and commands BEFORE wizard (to allow canceling wizard)
+		$btnUsers = __('bot.menu.users');
+		if ($text === $btnUsers || $action === 'USERS' || str_starts_with($text, '/users')) {
+			if ($this->addWizard->isActive($telegramId)) {
+				$this->addWizard->cancel($telegramId);
+			}
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'));
+				return;
+			}
+			$this->showUsersList($chatId, $user);
+			return;
+		}
+
+		// Wizard input (admin only) - check AFTER menu buttons
 		if ($this->addWizard->isActive($telegramId)) {
 			if ($text === '/abort') {
 				$this->addWizard->cancel($telegramId);
@@ -137,9 +154,6 @@ final class AccessHubBotService
 			$this->telegram->sendMessage($chatId, $result['message']);
 			return;
 		}
-
-		// Fast buttons mapping (text UI) - use reverse lookup
-		$action = $this->botKb->findActionByLabel($text);
 		
 		if ($action === 'ISSUE' || $text === __('bot.menu.issue')) {
 			$this->telegram->sendMessage($chatId, $this->operatorIssueHelp(), $this->mainReplyKeyboard($user));
@@ -295,17 +309,6 @@ final class AccessHubBotService
 			return;
 		}
 
-		// Users management (admin only)
-		$btnUsers = __('bot.menu.users');
-		if ($text === $btnUsers || $action === 'USERS' || str_starts_with($text, '/users')) {
-			if ($user?->role !== TelegramUserRole::Admin) {
-				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'));
-				return;
-			}
-
-			$this->showUsersList($chatId, $user);
-			return;
-		}
 
 		// Future stubs (buttons only)
 		$btnFind = __('bot.menu.find');
