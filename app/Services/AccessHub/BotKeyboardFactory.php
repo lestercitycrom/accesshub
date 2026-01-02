@@ -23,7 +23,7 @@ final class BotKeyboardFactory
 	{
 		$rows = [
 			[__('bot.menu.issue'), __('bot.menu.history')],
-			[__('bot.menu.help'), __('bot.menu.lang')],
+			[__('bot.menu.lang')],
 		];
 
 		return $this->kb->reply($rows);
@@ -40,7 +40,7 @@ final class BotKeyboardFactory
 			[__('bot.menu.issue'), __('bot.menu.history')],
 			[__('bot.menu.add'), __('bot.menu.import')],
 			[__('bot.menu.stats'), __('bot.menu.logs')],
-			[__('bot.menu.users'), __('bot.menu.help')],
+			[__('bot.menu.users')],
 		];
 
 		return $this->kb->reply($rows);
