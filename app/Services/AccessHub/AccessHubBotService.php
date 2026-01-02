@@ -675,6 +675,12 @@ final class AccessHubBotService
 		$text = implode("\n", $lines);
 		$inlineKeyboard = $this->kb->inline($buttons);
 
+		Log::info('bot.showUsersList', [
+			'users_count' => $users->count(),
+			'buttons_count' => count($buttons),
+			'keyboard' => $inlineKeyboard,
+		]);
+
 		if ($messageId !== null) {
 			$this->telegram->editMessageText($chatId, $messageId, $text, $inlineKeyboard);
 		} else {
