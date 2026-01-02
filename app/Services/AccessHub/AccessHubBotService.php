@@ -675,12 +675,11 @@ final class AccessHubBotService
 		$chatId = $message['chat']['id'];
 		$messageId = (int) $message['message_id'];
 
-		// Parse callback data: user_add, user_delete_{telegram_id}, user_refresh
+		// Parse callback data: user_add, user_delete, user_refresh
 		if ($data === 'user_add') {
 			$this->handleUserAddCallback($chatId, $messageId, $callbackQueryId, $user);
-		} elseif (str_starts_with($data, 'user_delete_')) {
-			$targetTelegramId = substr($data, 13); // Remove "user_delete_" prefix
-			$this->handleUserDeleteCallback($chatId, $messageId, $callbackQueryId, $targetTelegramId, $user);
+		} elseif ($data === 'user_delete') {
+			$this->handleUserDeleteCallback($chatId, $messageId, $callbackQueryId, $user);
 		} elseif ($data === 'user_refresh') {
 			$this->showUsersList($chatId, $user, $messageId);
 			$this->telegram->answerCallbackQuery($callbackQueryId, __('bot.admin.users_refreshed'));
@@ -709,16 +708,6 @@ final class AccessHubBotService
 				$roleLabel = $role === 'admin' ? __('bot.admin.role_admin') : __('bot.admin.role_operator');
 				$status = $u->is_active ? '✅' : '❌';
 				$lines[] = "{$status} ID: {$u->telegram_id} ({$roleLabel})";
-
-				// Add delete button for each user (except self)
-				if ($u->telegram_id !== $user?->telegram_id) {
-					$buttons[] = [
-						[
-							'text' => __('bot.admin.delete_user', ['id' => $u->telegram_id]),
-							'callback_data' => 'user_delete_' . $u->telegram_id,
-						],
-					];
-				}
 			}
 		}
 
@@ -728,6 +717,12 @@ final class AccessHubBotService
 				'text' => __('bot.admin.add_user'),
 				'callback_data' => 'user_add',
 			],
+			[
+				'text' => __('bot.admin.delete_user_btn'),
+				'callback_data' => 'user_delete',
+			],
+		];
+		$buttons[] = [
 			[
 				'text' => __('bot.admin.refresh'),
 				'callback_data' => 'user_refresh',
@@ -772,32 +767,24 @@ final class AccessHubBotService
 	}
 
 	/**
-	 * Handle user delete callback.
+	 * Handle user delete callback - show instruction.
 	 */
-	private function handleUserDeleteCallback(int|string $chatId, int $messageId, string $callbackQueryId, string $targetTelegramId, ?TelegramUser $user): void
+	private function handleUserDeleteCallback(int|string $chatId, int $messageId, string $callbackQueryId, ?TelegramUser $user): void
 	{
-		try {
-			$targetUser = TelegramUser::query()->where('telegram_id', $targetTelegramId)->first();
-
-			if ($targetUser === null) {
-				$this->telegram->answerCallbackQuery($callbackQueryId, __('bot.admin.user_not_found'));
-				$this->showUsersList($chatId, $user, $messageId);
-				return;
-			}
-
-			// Prevent self-deletion
-			if ($targetUser->telegram_id === $user?->telegram_id) {
-				$this->telegram->answerCallbackQuery($callbackQueryId, __('bot.admin.cannot_delete_self'));
-				return;
-			}
-
-			$targetUser->delete();
-			$this->telegram->answerCallbackQuery($callbackQueryId, __('bot.admin.user_deleted'));
-			$this->showUsersList($chatId, $user, $messageId);
-		} catch (Throwable $e) {
-			Log::error('bot.deleteuser_failed', ['error' => $e->getMessage(), 'telegram_id' => $targetTelegramId]);
-			$this->telegram->answerCallbackQuery($callbackQueryId, __('bot.replies.error_generic'));
-		}
+		$this->telegram->answerCallbackQuery($callbackQueryId, __('bot.admin.deluser_help_short'));
+		$this->telegram->editMessageText(
+			$chatId,
+			$messageId,
+			__('bot.admin.deluser_callback_help'),
+			$this->kb->inline([
+				[
+					[
+						'text' => __('bot.admin.back_to_users'),
+						'callback_data' => 'user_refresh',
+					],
+				],
+			])
+		);
 	}
 }
 
