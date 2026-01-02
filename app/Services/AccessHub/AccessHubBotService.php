@@ -122,12 +122,29 @@ final class AccessHubBotService
 		// Fast buttons mapping (text UI) - use reverse lookup
 		$action = $this->botKb->findActionByLabel($text);
 
-		// Check for menu buttons and commands BEFORE wizard (to allow canceling wizard)
+		// Check for ALL menu buttons BEFORE wizard (to allow canceling wizard with any menu button)
+		$btnIssue = __('bot.menu.issue');
+		$btnHistory = __('bot.menu.history');
+		$btnAdd = __('bot.menu.add');
+		$btnImport = __('bot.menu.import');
+		$btnStats = __('bot.menu.stats');
+		$btnLogs = __('bot.menu.logs');
 		$btnUsers = __('bot.menu.users');
+		$btnHelp = __('bot.menu.help');
+		$btnMenu = __('bot.menu.menu');
+		$btnRefresh = __('bot.menu.refresh');
+
+		$isMenuButton = in_array($text, [
+			$btnIssue, $btnHistory, $btnAdd, $btnImport, $btnStats, $btnLogs, $btnUsers, $btnHelp, $btnMenu, $btnRefresh
+		], true) || in_array($action, ['ISSUE', 'HISTORY', 'ADD', 'IMPORT', 'STATS', 'LOGS', 'USERS', 'HELP', 'MENU', 'REFRESH'], true);
+
+		// If any menu button is pressed, cancel wizard first
+		if ($isMenuButton && $this->addWizard->isActive($telegramId)) {
+			$this->addWizard->cancel($telegramId);
+		}
+
+		// Check for menu buttons and commands BEFORE wizard (to allow canceling wizard)
 		if ($text === $btnUsers || $action === 'USERS' || str_starts_with($text, '/users')) {
-			if ($this->addWizard->isActive($telegramId)) {
-				$this->addWizard->cancel($telegramId);
-			}
 			if ($user?->role !== TelegramUserRole::Admin) {
 				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'), $this->mainReplyKeyboard($user));
 				return;
@@ -142,7 +159,8 @@ final class AccessHubBotService
 		}
 
 		// Wizard input (admin only) - check AFTER menu buttons
-		if ($this->addWizard->isActive($telegramId)) {
+		// Only process wizard if text is NOT a menu button
+		if ($this->addWizard->isActive($telegramId) && !$isMenuButton) {
 			if ($text === '/abort') {
 				$this->addWizard->cancel($telegramId);
 				$this->telegram->sendMessage($chatId, __('bot.replies.command_cancelled'), $this->mainReplyKeyboard($user));
@@ -151,12 +169,13 @@ final class AccessHubBotService
 
 			if ($user?->role !== TelegramUserRole::Admin) {
 				$this->addWizard->cancel($telegramId);
-				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'));
+				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'), $this->mainReplyKeyboard($user));
 				return;
 			}
 
 			$result = $this->addWizard->handleInput($telegramId, $text);
-			$this->telegram->sendMessage($chatId, $result['message']);
+			$keyboard = $result['done'] ? $this->mainReplyKeyboard($user) : null;
+			$this->telegram->sendMessage($chatId, $result['message'], $keyboard);
 			return;
 		}
 		
@@ -173,12 +192,17 @@ final class AccessHubBotService
 		// Admin buttons + commands
 		if ($action === 'ADD' || $text === __('bot.menu.add') || str_starts_with($text, '/add')) {
 			if ($user?->role !== TelegramUserRole::Admin) {
-				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'));
+				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'), $this->mainReplyKeyboard($user));
 				return;
 			}
 
+			// Cancel existing wizard if active
+			if ($this->addWizard->isActive($telegramId)) {
+				$this->addWizard->cancel($telegramId);
+			}
+
 			$started = $this->addWizard->start($telegramId);
-			$this->telegram->sendMessage($chatId, $started['prompt']);
+			$this->telegram->sendMessage($chatId, $started['prompt'], $this->mainReplyKeyboard($user));
 			return;
 		}
 
