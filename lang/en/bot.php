@@ -51,6 +51,7 @@ return [
 		'adduser_help' => "Add user:\nCommand: /adduser <telegram_id> [role]\nExample: /adduser 123456789 operator\nExample: /adduser 123456789 admin",
 		'adduser_invalid_role' => "Invalid role. Use: admin or operator",
 		'adduser_success' => "✅ User added!\nTelegram ID: :telegram_id\nRole: :role",
+		'deluser_help' => "Delete user:\nCommand: /deluser <telegram_id> or /removeuser <telegram_id>\nExample: /deluser 123456789",
 		'adduser_help_short' => 'Use /adduser command',
 		'adduser_callback_help' => "To add a user, use the command:\n/adduser TELEGRAM_ID [role]\n\nExample:\n/adduser 123456789 operator\n/adduser 123456789 admin",
 		'role_admin' => 'Administrator',

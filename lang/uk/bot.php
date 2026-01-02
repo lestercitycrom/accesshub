@@ -51,6 +51,7 @@ return [
 		'adduser_help' => "Додати користувача:\nКоманда: /adduser <telegram_id> [role]\nПриклад: /adduser 123456789 operator\nПриклад: /adduser 123456789 admin",
 		'adduser_invalid_role' => "Невірна роль. Використовуйте: admin або operator",
 		'adduser_success' => "✅ Користувача додано!\nTelegram ID: :telegram_id\nРоль: :role",
+		'deluser_help' => "Видалити користувача:\nКоманда: /deluser <telegram_id> або /removeuser <telegram_id>\nПриклад: /deluser 123456789",
 		'adduser_help_short' => 'Використовуйте команду /adduser',
 		'adduser_callback_help' => "Для додавання користувача використовуйте команду:\n/adduser TELEGRAM_ID [role]\n\nПриклад:\n/adduser 123456789 operator\n/adduser 123456789 admin",
 		'role_admin' => 'Адміністратор',

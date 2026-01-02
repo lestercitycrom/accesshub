@@ -95,10 +95,10 @@ final class AccessHubBotService
 		if (str_starts_with($text, '/start') || str_starts_with($text, '/help') || $text === $btnHelp) {
 			$denyByDefault = (bool) config('accesshub.deny_by_default', true);
 			
-			// If user has access to WebApp, don't show ReplyKeyboard (hide menu)
+			// Always show keyboard menu for users with access
 			if (!$denyByDefault || $user !== null) {
-				// User has access - send message without ReplyKeyboard to hide menu
-				$this->telegram->sendMessage($chatId, $this->helpText(), null);
+				// User has access - show menu keyboard
+				$this->telegram->sendMessage($chatId, $this->helpText(), $this->mainReplyKeyboard($user));
 			} else {
 				// User doesn't have access - show menu as usual
 				$this->telegram->sendMessage($chatId, $this->helpText(), $this->mainReplyKeyboard($user));
@@ -189,8 +189,86 @@ final class AccessHubBotService
 			return;
 		}
 
-		// Admin buttons + commands
-		if ($action === 'ADD' || $text === __('bot.menu.add') || str_starts_with($text, '/add')) {
+		// Add user command: /adduser TELEGRAM_ID [role] - check BEFORE /add command
+		if (str_starts_with($text, '/adduser')) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			$parts = preg_split('/\s+/u', trim($text), 3);
+			if (count($parts) < 2) {
+				$this->telegram->sendMessage($chatId, __('bot.admin.adduser_help'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			$targetTelegramId = (string) $parts[1];
+			$role = isset($parts[2]) ? strtolower(trim($parts[2])) : 'operator';
+
+			$roleEnum = TelegramUserRole::tryFrom($role);
+			if ($roleEnum === null) {
+				$this->telegram->sendMessage($chatId, __('bot.admin.adduser_invalid_role'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			try {
+				TelegramUser::query()->updateOrCreate(
+					['telegram_id' => $targetTelegramId],
+					['role' => $roleEnum, 'is_active' => true]
+				);
+
+				$roleLabel = $roleEnum === TelegramUserRole::Admin ? __('bot.admin.role_admin') : __('bot.admin.role_operator');
+				$this->telegram->sendMessage(
+					$chatId,
+					__('bot.admin.adduser_success', ['telegram_id' => $targetTelegramId, 'role' => $roleLabel]),
+					$this->mainReplyKeyboard($user)
+				);
+			} catch (Throwable $e) {
+				Log::error('bot.adduser_failed', ['error' => $e->getMessage(), 'telegram_id' => $targetTelegramId]);
+				$this->telegram->sendMessage($chatId, __('bot.replies.error_generic'), $this->mainReplyKeyboard($user));
+			}
+			return;
+		}
+
+		// Delete user command: /deluser TELEGRAM_ID or /removeuser TELEGRAM_ID
+		if (str_starts_with($text, '/deluser') || str_starts_with($text, '/removeuser')) {
+			if ($user?->role !== TelegramUserRole::Admin) {
+				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			$parts = preg_split('/\s+/u', trim($text), 2);
+			if (count($parts) < 2) {
+				$this->telegram->sendMessage($chatId, __('bot.admin.deluser_help'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			$targetTelegramId = (string) $parts[1];
+
+			// Prevent self-deletion
+			if ($targetTelegramId === $user?->telegram_id) {
+				$this->telegram->sendMessage($chatId, __('bot.admin.cannot_delete_self'), $this->mainReplyKeyboard($user));
+				return;
+			}
+
+			try {
+				$targetUser = TelegramUser::query()->where('telegram_id', $targetTelegramId)->first();
+				if ($targetUser === null) {
+					$this->telegram->sendMessage($chatId, __('bot.admin.user_not_found'), $this->mainReplyKeyboard($user));
+					return;
+				}
+
+				$targetUser->delete();
+				$this->telegram->sendMessage($chatId, __('bot.admin.user_deleted'), $this->mainReplyKeyboard($user));
+			} catch (Throwable $e) {
+				Log::error('bot.deluser_failed', ['error' => $e->getMessage(), 'telegram_id' => $targetTelegramId]);
+				$this->telegram->sendMessage($chatId, __('bot.replies.error_generic'), $this->mainReplyKeyboard($user));
+			}
+			return;
+		}
+
+		// Admin buttons + commands - check exact match for /add to avoid conflict with /adduser
+		if ($action === 'ADD' || $text === __('bot.menu.add') || ($text === '/add' || (str_starts_with($text, '/add ') && !str_starts_with($text, '/adduser')))) {
 			if ($user?->role !== TelegramUserRole::Admin) {
 				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'), $this->mainReplyKeyboard($user));
 				return;
@@ -297,46 +375,6 @@ final class AccessHubBotService
 			return;
 		}
 
-		// Add user command: /adduser TELEGRAM_ID [role]
-		if (str_starts_with($text, '/adduser')) {
-			if ($user?->role !== TelegramUserRole::Admin) {
-				$this->telegram->sendMessage($chatId, __('bot.replies.no_permission'));
-				return;
-			}
-
-			$parts = preg_split('/\s+/u', trim($text), 3);
-			if (count($parts) < 2) {
-				$this->telegram->sendMessage($chatId, __('bot.admin.adduser_help'), $this->mainReplyKeyboard($user));
-				return;
-			}
-
-			$targetTelegramId = (string) $parts[1];
-			$role = isset($parts[2]) ? strtolower(trim($parts[2])) : 'operator';
-
-			$roleEnum = TelegramUserRole::tryFrom($role);
-			if ($roleEnum === null) {
-				$this->telegram->sendMessage($chatId, __('bot.admin.adduser_invalid_role'), $this->mainReplyKeyboard($user));
-				return;
-			}
-
-			try {
-				TelegramUser::query()->updateOrCreate(
-					['telegram_id' => $targetTelegramId],
-					['role' => $roleEnum, 'is_active' => true]
-				);
-
-				$roleLabel = $roleEnum === TelegramUserRole::Admin ? __('bot.admin.role_admin') : __('bot.admin.role_operator');
-				$this->telegram->sendMessage(
-					$chatId,
-					__('bot.admin.adduser_success', ['telegram_id' => $targetTelegramId, 'role' => $roleLabel]),
-					$this->mainReplyKeyboard($user)
-				);
-			} catch (Throwable $e) {
-				Log::error('bot.adduser_failed', ['error' => $e->getMessage(), 'telegram_id' => $targetTelegramId]);
-				$this->telegram->sendMessage($chatId, __('bot.replies.error_generic'), $this->mainReplyKeyboard($user));
-			}
-			return;
-		}
 
 
 		// Future stubs (buttons only)
