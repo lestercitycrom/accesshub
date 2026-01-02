@@ -10,13 +10,24 @@ use Illuminate\Console\Command;
 
 final class AccessHubUserAddCommand extends Command
 {
-	protected $signature = 'accesshub:user:add {telegram_id} {role=operator}';
+	protected $signature = 'accesshub:user:add 
+							{--telegram_id= : Telegram user ID}
+							{--role=operator : User role (admin or operator)}';
 	protected $description = 'Add or update telegram user for AccessHub (admin/operator).';
 
 	public function handle(): int
 	{
-		$telegramId = (string) $this->argument('telegram_id');
-		$role = (string) $this->argument('role');
+		$telegramId = $this->option('telegram_id');
+		$role = $this->option('role');
+
+		if (!$telegramId) {
+			$telegramId = $this->ask('Telegram ID');
+		}
+
+		if (!$telegramId) {
+			$this->error('Telegram ID is required.');
+			return self::FAILURE;
+		}
 
 		$roleEnum = TelegramUserRole::tryFrom($role);
 		if ($roleEnum === null) {
@@ -25,7 +36,7 @@ final class AccessHubUserAddCommand extends Command
 		}
 
 		TelegramUser::query()->updateOrCreate(
-			['telegram_id' => $telegramId],
+			['telegram_id' => (string) $telegramId],
 			['role' => $roleEnum, 'is_active' => true]
 		);
 
@@ -34,6 +45,8 @@ final class AccessHubUserAddCommand extends Command
 		return self::SUCCESS;
 	}
 }
+
+
 
 
 
