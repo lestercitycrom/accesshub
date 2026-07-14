@@ -12,10 +12,11 @@ jobs:
   search:
     strategy:
       fail-fast: false
+      max-parallel: 20
       matrix:
-        start: [0, 250, 500, 750]
+        start: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950]
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -42,9 +43,9 @@ jobs:
           from pathlib import Path
           start = ${{ matrix.start }}
           rows = json.load(open('input/themeforest-description-pass-1000.json', encoding='utf-8'))
-          chunk = rows[start:start + 250]
-          if len(chunk) != 250:
-              raise SystemExit(f'Expected 250 rows, got {len(chunk)}')
+          chunk = rows[start:start + 50]
+          if len(chunk) != 50:
+              raise SystemExit(f'Expected 50 rows, got {len(chunk)}')
           Path('input/chunk.json').write_text(json.dumps(chunk, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           PY
       - name: Search unresolved and suspicious rows
@@ -58,7 +59,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-search-${{ matrix.start }}
+          name: themeforest-fast-search-${{ matrix.start }}
           path: output/
           retention-days: 3
 
@@ -72,7 +73,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: themeforest-search-*
+          pattern: themeforest-fast-search-*
           path: chunks
       - name: Merge final results
         shell: bash
@@ -146,6 +147,6 @@ jobs:
       - name: Upload final package
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-clean-demo-pages-final
+          name: themeforest-clean-demo-pages-fast-final
           path: final/
           retention-days: 3
