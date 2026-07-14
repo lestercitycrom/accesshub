@@ -4,19 +4,18 @@ on:
   pull_request:
     paths:
       - '.github/workflows/themeforest-clean.yml'
-      - 'scripts/themeforest_search_unresolved.py'
-      - 'scripts/themeforest_search_unresolved_v2.py'
+      - 'scripts/themeforest_retry_rate_limited.py'
   workflow_dispatch:
 
 jobs:
-  search:
+  retry:
     strategy:
       fail-fast: false
-      max-parallel: 20
+      max-parallel: 16
       matrix:
-        start: [0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 70
     permissions:
       actions: read
       contents: read
@@ -34,119 +33,162 @@ jobs:
           path: input
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 29299069474
-      - name: Prepare chunk
+      - name: Prepare rate-limited retry shard
         shell: bash
         run: |
           mkdir -p output
           python - <<'PY'
           import json
           from pathlib import Path
-          start = ${{ matrix.start }}
+
+          shard = ${{ matrix.shard }}
+          shard_count = 16
           rows = json.load(open('input/themeforest-description-pass-1000.json', encoding='utf-8'))
-          chunk = rows[start:start + 50]
-          if len(chunk) != 50:
-              raise SystemExit(f'Expected 50 rows, got {len(chunk)}')
-          Path('input/chunk.json').write_text(json.dumps(chunk, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          failed = [row for row in rows if 'item reader failed' in row.get('error', '')]
+          selected = failed[shard::shard_count]
+          items = [
+              {
+                  'rank': int(row['rank']),
+                  'item_id': int(row['item_id']),
+                  'slug': row['slug'],
+              }
+              for row in selected
+          ]
+          Path('input/retry-items.json').write_text(
+              json.dumps(items, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          print(f'All rate-limited rows: {len(failed)}; shard {shard}: {len(items)}')
           PY
-      - name: Search unresolved and suspicious rows
+      - name: Retry item descriptions slowly
         shell: bash
         run: |
           set -o pipefail
-          python scripts/themeforest_search_unresolved_v2.py \
-            input/chunk.json output \
-            2>&1 | tee output/search.log
-      - name: Upload searched chunk
+          python scripts/themeforest_retry_rate_limited.py \
+            input/retry-items.json output 0 1000 \
+            2>&1 | tee output/retry.log
+      - name: Upload retry shard
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-fast-search-${{ matrix.start }}
+          name: themeforest-rate-retry-${{ matrix.shard }}
           path: output/
           retention-days: 3
 
   merge:
-    needs: search
+    needs: retry
     if: always()
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download original description pass
+        uses: actions/download-artifact@v4
         with:
-          pattern: themeforest-fast-search-*
-          path: chunks
-      - name: Merge final results
+          name: themeforest-description-pass-1000
+          path: original
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 29299069474
+      - name: Download retry shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: themeforest-rate-retry-*
+          path: retries
+      - name: Merge retry results
         shell: bash
         run: |
           mkdir -p final
           python - <<'PY'
-          import csv, glob, hashlib, json, re, zipfile
+          import csv
+          import glob
+          import hashlib
+          import json
+          import re
+          import zipfile
           from pathlib import Path
-          paths = glob.glob('chunks/**/themeforest-clean-demo-pages.json', recursive=True)
-          rows = []
-          for path in paths:
-              rows.extend(json.load(open(path, encoding='utf-8')))
-          rows.sort(key=lambda row: int(row['rank']))
-          if len(rows) != 1000:
-              raise SystemExit(f'Expected 1000 rows, got {len(rows)} from {len(paths)} chunks')
-          if len({int(row['item_id']) for row in rows}) != 1000:
-              raise SystemExit('Duplicate item IDs in final result')
 
-          suspicious = re.compile(r'/(?:auth|sign[-_]?in|login|register|reviews?|builder|forums?|faqs?|support|docs?|documentation|changelog|blog|article|post|single|product|shop|cart|checkout|portfolio-item)(?:[/.\-_]|$)', re.I)
+          rows = json.load(open('original/themeforest-description-pass-1000.json', encoding='utf-8'))
+          by_id = {int(row['item_id']): row for row in rows}
+
+          retry_paths = glob.glob('retries/**/themeforest-clean-demo-pages.json', recursive=True)
+          retry_rows = []
+          for path in retry_paths:
+              retry_rows.extend(json.load(open(path, encoding='utf-8')))
+
+          for retry in retry_rows:
+              item_id = int(retry['item_id'])
+              original = by_id[item_id]
+              # Replace the old rate-limit error whenever the retry reached the
+              # item page, even when no valid external demo was present.
+              if retry.get('item_page_status') or retry.get('clean_demo_url'):
+                  by_id[item_id] = retry
+
+          merged = sorted(by_id.values(), key=lambda row: int(row['rank']))
+          if len(merged) != 1000 or len({int(row['item_id']) for row in merged}) != 1000:
+              raise SystemExit('Merged result is not 1000 unique products')
+
+          suspicious = re.compile(
+              r'/(?:auth|sign[-_]?in|login|register|reviews?|builder|forums?|faqs?|support|docs?|documentation|changelog|blog|article|post|single|product|shop|cart|checkout|portfolio-item)(?:[/._-]|$)',
+              re.I,
+          )
           verified = []
-          for row in rows:
+          for row in merged:
               url = row.get('clean_demo_url', '')
               if not url or row.get('confidence') not in ('high', 'medium'):
                   continue
-              if int(row.get('http_status') or 0) >= 400:
-                  continue
-              if suspicious.search(url):
+              if int(row.get('http_status') or 0) >= 400 or suspicious.search(url):
                   continue
               verified.append(row)
-          unresolved = [row for row in rows if row not in verified]
+          unresolved = [row for row in merged if row not in verified]
 
-          fields = list(rows[0].keys())
-          json_path = Path('final/themeforest-clean-demo-pages-1000.json')
-          csv_path = Path('final/themeforest-clean-demo-pages-1000.csv')
+          fields = list(merged[0].keys())
+          json_path = Path('final/themeforest-clean-demo-pages-after-rate-retry.json')
+          csv_path = Path('final/themeforest-clean-demo-pages-after-rate-retry.csv')
           txt_path = Path('final/themeforest-clean-demo-pages-verified.txt')
           review_path = Path('final/themeforest-needs-review.csv')
           summary_path = Path('final/summary.json')
           checksum_path = Path('final/SHA256SUMS.txt')
-          zip_path = Path('final/themeforest-clean-demo-pages.zip')
+          zip_path = Path('final/themeforest-clean-demo-pages-after-rate-retry.zip')
 
-          json_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          json_path.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           with csv_path.open('w', encoding='utf-8-sig', newline='') as file:
               writer = csv.DictWriter(file, fieldnames=fields)
-              writer.writeheader(); writer.writerows(rows)
+              writer.writeheader(); writer.writerows(merged)
           txt_path.write_text('\n'.join(row['clean_demo_url'] for row in verified) + ('\n' if verified else ''), encoding='utf-8')
           with review_path.open('w', encoding='utf-8-sig', newline='') as file:
               writer = csv.DictWriter(file, fieldnames=fields)
               writer.writeheader(); writer.writerows(unresolved)
 
-          urls = [row['clean_demo_url'] for row in verified]
+          original_rate_errors = sum('item reader failed' in row.get('error', '') for row in rows)
+          remaining_rate_errors = sum('item reader' in row.get('error', '') for row in merged)
           summary = {
-              'total_products': len(rows),
+              'total_products': 1000,
+              'retry_shards_found': len(retry_paths),
+              'retry_rows_returned': len(retry_rows),
+              'original_rate_limited_rows': original_rate_errors,
+              'remaining_item_reader_errors': remaining_rate_errors,
               'verified_clean_demo_urls': len(verified),
+              'unique_verified_urls': len({row['clean_demo_url'] for row in verified}),
               'unresolved_or_rejected': len(unresolved),
-              'unique_verified_urls': len(set(urls)),
               'high_confidence': sum(row.get('confidence') == 'high' for row in verified),
               'medium_confidence': sum(row.get('confidence') == 'medium' for row in verified),
-              'search_resolved': sum('search-pass' in row.get('candidate_method','') for row in verified),
-              'description_resolved': sum('description-only' in row.get('candidate_method','') for row in verified),
-              'rows_with_errors': sum(bool(row.get('error')) for row in rows),
           }
           summary_path.write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
 
           files = [json_path, csv_path, txt_path, review_path, summary_path]
-          checksum_path.write_text('\n'.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}' for path in files) + '\n', encoding='utf-8')
+          checksum_path.write_text(
+              '\n'.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}' for path in files) + '\n',
+              encoding='utf-8',
+          )
           with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as archive:
               for path in files + [checksum_path]:
                   archive.write(path, path.name)
           print(json.dumps(summary, indent=2))
           PY
-      - name: Upload final package
+      - name: Upload merged retry result
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-clean-demo-pages-fast-final
+          name: themeforest-rate-retry-final
           path: final/
           retention-days: 3
