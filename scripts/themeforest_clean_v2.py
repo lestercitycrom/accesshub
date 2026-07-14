@@ -117,8 +117,8 @@ async def collect_items(client: httpx.AsyncClient, target: int) -> list[dict]:
     for page in range(1, 70):
         if len(items) >= target:
             break
-        source = f'https://themeforest.net/category/site-templates?sort=sales&page={page}'
-        proxy = 'https://r.jina.ai/http://' + source.removeprefix('https://')
+        source = f'https://themeforest.net/category/site-templates?page={page}&sort=sales'
+        proxy = 'https://r.jina.ai/' + source
         text = ''
         try:
             r = await fetch(client, source, tries=2)
