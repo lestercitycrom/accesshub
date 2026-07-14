@@ -25,14 +25,19 @@ jobs:
       - name: Restore and verify saved ranking
         shell: bash
         run: |
-          sha256sum data/themeforest_previews.json.gz.b64.part*
-          wc -c data/themeforest_previews.json.gz.b64.part*
+          mkdir -p output
+          sha256sum data/themeforest_previews.json.gz.b64.part* \
+            | tee output/chunk-hashes.txt
+          wc -c data/themeforest_previews.json.gz.b64.part* \
+            | tee output/chunk-sizes.txt
           cat data/themeforest_previews.json.gz.b64.part* > /tmp/themeforest-input.b64
-          sha256sum /tmp/themeforest-input.b64
+          sha256sum /tmp/themeforest-input.b64 \
+            | tee output/combined-base64-hash.txt
           base64 --decode /tmp/themeforest-input.b64 \
             | gzip --decompress \
             > data/themeforest-previews-runtime.json
-          sha256sum data/themeforest-previews-runtime.json
+          sha256sum data/themeforest-previews-runtime.json \
+            | tee output/restored-json-hash.txt
           echo '20e01ced93846ae4336c8f5f5b4581e706a4ff582fffbf9817f54240398d28cd  data/themeforest-previews-runtime.json' \
             | sha256sum --check
           python - <<'PY'
