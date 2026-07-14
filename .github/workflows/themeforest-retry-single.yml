@@ -1,0 +1,56 @@
+name: ThemeForest retry single worker
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/themeforest-retry-single.yml'
+      - 'scripts/themeforest_retry_rate_limited.py'
+  workflow_dispatch:
+
+jobs:
+  retry-single:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install httpx beautifulsoup4 lxml
+      - name: Download description pass
+        uses: actions/download-artifact@v4
+        with:
+          name: themeforest-description-pass-1000
+          path: input
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 29299069474
+      - name: Prepare first retry batch
+        shell: bash
+        run: |
+          mkdir -p output
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows = json.load(open('input/themeforest-description-pass-1000.json', encoding='utf-8'))
+          failed = [row for row in rows if 'item reader failed' in row.get('error', '')]
+          selected = failed[:40]
+          items = [{'rank': int(row['rank']), 'item_id': int(row['item_id']), 'slug': row['slug']} for row in selected]
+          Path('input/retry-items.json').write_text(json.dumps(items, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print('Prepared', len(items), 'of', len(failed), 'rate-limited rows')
+          PY
+      - name: Retry item descriptions slowly
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/themeforest_retry_rate_limited.py input/retry-items.json output 0 1000 2>&1 | tee output/retry.log
+      - name: Upload retry batch
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: themeforest-rate-retry-single-0
+          path: output/
+          retention-days: 3
