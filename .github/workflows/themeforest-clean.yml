@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/themeforest-clean.yml'
-      - 'scripts/themeforest_clean.py'
+      - 'scripts/themeforest_clean_v2.py'
   workflow_dispatch:
 
 jobs:
@@ -21,11 +21,11 @@ jobs:
       - name: Install dependencies
         run: pip install httpx beautifulsoup4 lxml
       - name: Extract clean demo pages
-        run: python scripts/themeforest_clean.py data/themeforest-previews-runtime.json output
+        run: python scripts/themeforest_clean_v2.py output 1000
       - name: Upload result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-clean-demo-pages
+          name: themeforest-clean-demo-pages-v2
           path: output/
           retention-days: 3
