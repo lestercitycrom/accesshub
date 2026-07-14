@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/themeforest-clean.yml'
       - 'scripts/themeforest_clean_v2.py'
+      - 'scripts/themeforest_clean_from_input.py'
+      - 'data/themeforest_previews.json.gz.b64.part*'
   workflow_dispatch:
 
 jobs:
@@ -20,12 +22,31 @@ jobs:
           python-version: '3.12'
       - name: Install dependencies
         run: pip install httpx beautifulsoup4 lxml
+      - name: Restore and verify saved ranking
+        shell: bash
+        run: |
+          cat data/themeforest_previews.json.gz.b64.part* \
+            | base64 --decode \
+            | gzip --decompress \
+            > data/themeforest-previews-runtime.json
+          echo '20e01ced93846ae4336c8f5f5b4581e706a4ff582fffbf9817f54240398d28cd  data/themeforest-previews-runtime.json' \
+            | sha256sum --check
+          python - <<'PY'
+          import json
+          path = 'data/themeforest-previews-runtime.json'
+          items = json.load(open(path, encoding='utf-8'))
+          assert len(items) == 1000, len(items)
+          assert len({int(item['item_id']) for item in items}) == 1000
+          print('Verified input:', len(items), 'unique records')
+          PY
       - name: Extract clean demo pages
-        run: python scripts/themeforest_clean_v2.py output 1000
+        run: >-
+          python scripts/themeforest_clean_from_input.py
+          data/themeforest-previews-runtime.json output
       - name: Upload result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-clean-demo-pages-v2
+          name: themeforest-clean-demo-pages-v4
           path: output/
           retention-days: 3
