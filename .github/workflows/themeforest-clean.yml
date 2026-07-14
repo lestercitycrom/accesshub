@@ -4,11 +4,12 @@ on:
   pull_request:
     paths:
       - '.github/workflows/themeforest-clean.yml'
-      - 'scripts/themeforest_description_extract.py'
+      - 'scripts/themeforest_search_unresolved.py'
+      - 'scripts/themeforest_search_unresolved_v2.py'
   workflow_dispatch:
 
 jobs:
-  extract:
+  search:
     strategy:
       fail-fast: false
       matrix:
@@ -16,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@v4
@@ -24,58 +26,60 @@ jobs:
           python-version: '3.12'
       - name: Install dependencies
         run: pip install httpx beautifulsoup4 lxml
-      - name: Restore saved ranking
+      - name: Download description pass
+        uses: actions/download-artifact@v4
+        with:
+          name: themeforest-description-pass-1000
+          path: input
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 29299069474
+      - name: Prepare chunk
         shell: bash
         run: |
           mkdir -p output
-          INPUT_PARTS=(
-            data/themeforest_previews.json.gz.b64.part00
-            data/themeforest_previews.json.gz.b64.part01
-            data/themeforest_previews.part02.00
-            data/themeforest_previews.part02.01
-            data/themeforest_previews.part02.02
-            data/themeforest_previews.part02.03
-            data/themeforest_previews.part02.04
-            data/themeforest_previews.json.gz.b64.part03
-            data/themeforest_previews.json.gz.b64.part04
-            data/themeforest_previews.json.gz.b64.part05
-          )
-          cat "${INPUT_PARTS[@]}" > /tmp/themeforest-input.b64
-          echo 'f546027dd39e0efa9c3c192784640b7d3a3e6304a99044e37ae4be95ff34a95e  /tmp/themeforest-input.b64' | sha256sum --check
-          base64 --decode /tmp/themeforest-input.b64 | gzip --decompress > data/themeforest-previews-runtime.json
-          echo '20e01ced93846ae4336c8f5f5b4581e706a4ff582fffbf9817f54240398d28cd  data/themeforest-previews-runtime.json' | sha256sum --check
-      - name: Extract description links
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          start = ${{ matrix.start }}
+          rows = json.load(open('input/themeforest-description-pass-1000.json', encoding='utf-8'))
+          chunk = rows[start:start + 250]
+          if len(chunk) != 250:
+              raise SystemExit(f'Expected 250 rows, got {len(chunk)}')
+          Path('input/chunk.json').write_text(json.dumps(chunk, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+      - name: Search unresolved and suspicious rows
         shell: bash
         run: |
           set -o pipefail
-          python scripts/themeforest_description_extract.py \
-            data/themeforest-previews-runtime.json output ${{ matrix.start }} 250 \
-            2>&1 | tee output/extractor.log
-      - name: Upload chunk
+          python scripts/themeforest_search_unresolved_v2.py \
+            input/chunk.json output \
+            2>&1 | tee output/search.log
+      - name: Upload searched chunk
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-desc-${{ matrix.start }}
+          name: themeforest-search-${{ matrix.start }}
           path: output/
           retention-days: 3
 
   merge:
-    needs: extract
+    needs: search
     if: always()
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: themeforest-desc-*
+          pattern: themeforest-search-*
           path: chunks
-      - name: Merge description pass
+      - name: Merge final results
         shell: bash
         run: |
           mkdir -p final
           python - <<'PY'
-          import csv, glob, json
+          import csv, glob, hashlib, json, re, zipfile
           from pathlib import Path
           paths = glob.glob('chunks/**/themeforest-clean-demo-pages.json', recursive=True)
           rows = []
@@ -85,37 +89,63 @@ jobs:
           if len(rows) != 1000:
               raise SystemExit(f'Expected 1000 rows, got {len(rows)} from {len(paths)} chunks')
           if len({int(row['item_id']) for row in rows}) != 1000:
-              raise SystemExit('Duplicate item IDs in merged result')
+              raise SystemExit('Duplicate item IDs in final result')
+
+          suspicious = re.compile(r'/(?:auth|sign[-_]?in|login|register|reviews?|builder|forums?|faqs?|support|docs?|documentation|changelog|blog|article|post|single|product|shop|cart|checkout|portfolio-item)(?:[/.\-_]|$)', re.I)
+          verified = []
+          for row in rows:
+              url = row.get('clean_demo_url', '')
+              if not url or row.get('confidence') not in ('high', 'medium'):
+                  continue
+              if int(row.get('http_status') or 0) >= 400:
+                  continue
+              if suspicious.search(url):
+                  continue
+              verified.append(row)
+          unresolved = [row for row in rows if row not in verified]
+
           fields = list(rows[0].keys())
-          Path('final/themeforest-description-pass-1000.json').write_text(
-              json.dumps(rows, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
-          )
-          with open('final/themeforest-description-pass-1000.csv', 'w', encoding='utf-8-sig', newline='') as file:
+          json_path = Path('final/themeforest-clean-demo-pages-1000.json')
+          csv_path = Path('final/themeforest-clean-demo-pages-1000.csv')
+          txt_path = Path('final/themeforest-clean-demo-pages-verified.txt')
+          review_path = Path('final/themeforest-needs-review.csv')
+          summary_path = Path('final/summary.json')
+          checksum_path = Path('final/SHA256SUMS.txt')
+          zip_path = Path('final/themeforest-clean-demo-pages.zip')
+
+          json_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          with csv_path.open('w', encoding='utf-8-sig', newline='') as file:
               writer = csv.DictWriter(file, fieldnames=fields)
               writer.writeheader(); writer.writerows(rows)
-          verified = [row for row in rows if row.get('clean_demo_url') and row.get('confidence') in ('high','medium') and int(row.get('http_status') or 0) < 400]
-          unresolved = [row for row in rows if row not in verified]
-          Path('final/themeforest-description-verified.txt').write_text(
-              '\n'.join(row['clean_demo_url'] for row in verified) + ('\n' if verified else ''), encoding='utf-8'
-          )
-          with open('final/themeforest-description-unresolved.csv', 'w', encoding='utf-8-sig', newline='') as file:
+          txt_path.write_text('\n'.join(row['clean_demo_url'] for row in verified) + ('\n' if verified else ''), encoding='utf-8')
+          with review_path.open('w', encoding='utf-8-sig', newline='') as file:
               writer = csv.DictWriter(file, fieldnames=fields)
               writer.writeheader(); writer.writerows(unresolved)
+
+          urls = [row['clean_demo_url'] for row in verified]
           summary = {
-              'total': len(rows),
-              'verified': len(verified),
-              'unresolved': len(unresolved),
-              'high': sum(row.get('confidence') == 'high' for row in rows),
-              'medium': sum(row.get('confidence') == 'medium' for row in rows),
-              'item_pages_read': sum(bool(row.get('item_page_status')) for row in rows),
-              'errors': sum(bool(row.get('error')) for row in rows),
+              'total_products': len(rows),
+              'verified_clean_demo_urls': len(verified),
+              'unresolved_or_rejected': len(unresolved),
+              'unique_verified_urls': len(set(urls)),
+              'high_confidence': sum(row.get('confidence') == 'high' for row in verified),
+              'medium_confidence': sum(row.get('confidence') == 'medium' for row in verified),
+              'search_resolved': sum('search-pass' in row.get('candidate_method','') for row in verified),
+              'description_resolved': sum('description-only' in row.get('candidate_method','') for row in verified),
+              'rows_with_errors': sum(bool(row.get('error')) for row in rows),
           }
-          Path('final/summary.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
+          summary_path.write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
+
+          files = [json_path, csv_path, txt_path, review_path, summary_path]
+          checksum_path.write_text('\n'.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}' for path in files) + '\n', encoding='utf-8')
+          with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as archive:
+              for path in files + [checksum_path]:
+                  archive.write(path, path.name)
           print(json.dumps(summary, indent=2))
           PY
-      - name: Upload merged description pass
+      - name: Upload final package
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-description-pass-1000
+          name: themeforest-clean-demo-pages-final
           path: final/
           retention-days: 3
