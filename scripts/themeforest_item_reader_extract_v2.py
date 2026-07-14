@@ -7,6 +7,9 @@ from urllib.parse import urlparse
 # candidate filtering/ranking. Its main() will use these patched functions.
 import themeforest_item_reader_extract as base
 
+ORIGINAL_IS_BLOCKED_URL = base.is_blocked_url
+ORIGINAL_EXTRACT_CANDIDATES = base.extract_candidates
+
 GENERIC_SLUG_WORDS = {
     'responsive', 'html', 'html5', 'template', 'theme', 'multipurpose',
     'bootstrap', 'website', 'site', 'admin', 'dashboard', 'landing',
@@ -65,12 +68,15 @@ def extract_number(reason: str, name: str) -> int:
 
 
 def extract_candidates_v2(markdown: str, slug: str, title: str):
-    original_is_blocked = base.is_blocked_url
+    # The original scorer reads base.is_blocked_url dynamically. Temporarily
+    # point that helper to the strict filter, but call the saved original
+    # scorer to avoid recursive self-invocation.
+    current_is_blocked = base.is_blocked_url
     base.is_blocked_url = is_blocked_url_v2
     try:
-        candidates = base.extract_candidates(markdown, slug, title)
+        candidates = ORIGINAL_EXTRACT_CANDIDATES(markdown, slug, title)
     finally:
-        base.is_blocked_url = original_is_blocked
+        base.is_blocked_url = current_is_blocked
 
     primary = primary_token(slug)
     rescored = []
