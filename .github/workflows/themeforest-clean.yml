@@ -4,42 +4,53 @@ on:
   pull_request:
     paths:
       - '.github/workflows/themeforest-clean.yml'
+      - 'scripts/themeforest_item_reader_extract.py'
   workflow_dispatch:
 
 jobs:
   extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Test item-page readers
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install httpx beautifulsoup4 lxml
+      - name: Restore saved ranking
         shell: bash
         run: |
           mkdir -p output
-          set +e
-          curl -L --max-time 60 -D output/multikart-jina-https.headers \
-            'https://r.jina.ai/https://themeforest.net/item/multikart-responsive-ecommerce-html-template/22809967' \
-            -o output/multikart-jina-https.txt
-          curl -L --max-time 60 -D output/metronic-jina-https.headers \
-            'https://r.jina.ai/https://themeforest.net/item/metronic-responsive-admin-dashboard-template/4021469' \
-            -o output/metronic-jina-https.txt
-          curl -L --max-time 60 -D output/multikart-jina-http.headers \
-            'https://r.jina.ai/http://themeforest.net/item/multikart-responsive-ecommerce-html-template/22809967' \
-            -o output/multikart-jina-http.txt
-          curl -L --max-time 60 -D output/envato-api.headers \
-            'https://api.envato.com/v3/market/catalog/item?id=22809967' \
-            -o output/envato-api.json
-          wc -c output/* | tee output/sizes.txt
-          grep -Eoi 'https?://[^ )"<>]+' output/multikart-jina-https.txt \
-            | head -100 > output/multikart-links.txt
-          grep -Eoi 'https?://[^ )"<>]+' output/metronic-jina-https.txt \
-            | head -100 > output/metronic-links.txt
+          INPUT_PARTS=(
+            data/themeforest_previews.json.gz.b64.part00
+            data/themeforest_previews.json.gz.b64.part01
+            data/themeforest_previews.part02.00
+            data/themeforest_previews.part02.01
+            data/themeforest_previews.part02.02
+            data/themeforest_previews.part02.03
+            data/themeforest_previews.part02.04
+            data/themeforest_previews.json.gz.b64.part03
+            data/themeforest_previews.json.gz.b64.part04
+            data/themeforest_previews.json.gz.b64.part05
+          )
+          cat "${INPUT_PARTS[@]}" > /tmp/themeforest-input.b64
+          echo 'f546027dd39e0efa9c3c192784640b7d3a3e6304a99044e37ae4be95ff34a95e  /tmp/themeforest-input.b64' | sha256sum --check
+          base64 --decode /tmp/themeforest-input.b64 | gzip --decompress > data/themeforest-previews-runtime.json
+          echo '20e01ced93846ae4336c8f5f5b4581e706a4ff582fffbf9817f54240398d28cd  data/themeforest-previews-runtime.json' | sha256sum --check
+      - name: Test item-description extractor on first 20
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/themeforest_item_reader_extract.py \
+            data/themeforest-previews-runtime.json output 0 20 \
+            2>&1 | tee output/extractor.log
       - name: Upload result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-item-reader-test
+          name: themeforest-item-extractor-test-20
           path: output/
           retention-days: 3
