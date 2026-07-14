@@ -4,50 +4,46 @@ on:
   pull_request:
     paths:
       - '.github/workflows/themeforest-clean.yml'
-      - 'scripts/themeforest_candidate_debug.py'
   workflow_dispatch:
 
 jobs:
   extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install dependencies
-        run: pip install httpx beautifulsoup4 lxml
-      - name: Restore saved ranking
+      - name: Test public search fallbacks
         shell: bash
         run: |
           mkdir -p output
-          INPUT_PARTS=(
-            data/themeforest_previews.json.gz.b64.part00
-            data/themeforest_previews.json.gz.b64.part01
-            data/themeforest_previews.part02.00
-            data/themeforest_previews.part02.01
-            data/themeforest_previews.part02.02
-            data/themeforest_previews.part02.03
-            data/themeforest_previews.part02.04
-            data/themeforest_previews.json.gz.b64.part03
-            data/themeforest_previews.json.gz.b64.part04
-            data/themeforest_previews.json.gz.b64.part05
+          set +e
+          QUERIES=(
+            'Canvas multipurpose HTML5 template SemicolonWeb live demo'
+            'Porto responsive HTML5 template Okler live demo'
+            'MegaOne one page parallax template live demo'
+            'Limitless responsive web application kit live demo'
           )
-          cat "${INPUT_PARTS[@]}" > /tmp/themeforest-input.b64
-          echo 'f546027dd39e0efa9c3c192784640b7d3a3e6304a99044e37ae4be95ff34a95e  /tmp/themeforest-input.b64' | sha256sum --check
-          base64 --decode /tmp/themeforest-input.b64 | gzip --decompress > data/themeforest-previews-runtime.json
-          echo '20e01ced93846ae4336c8f5f5b4581e706a4ff582fffbf9817f54240398d28cd  data/themeforest-previews-runtime.json' | sha256sum --check
-      - name: Collect candidate diagnostics for first 20
-        run: >-
-          python scripts/themeforest_candidate_debug.py
-          data/themeforest-previews-runtime.json output 0 20
+          i=0
+          for query in "${QUERIES[@]}"; do
+            encoded=$(python -c 'import sys,urllib.parse; print(urllib.parse.quote_plus(sys.argv[1]))' "$query")
+            curl -L --max-time 45 -A 'Mozilla/5.0' \
+              "https://html.duckduckgo.com/html/?q=$encoded" \
+              -o "output/ddg-$i.html"
+            curl -L --max-time 45 -A 'Mozilla/5.0' \
+              "https://www.bing.com/search?q=$encoded" \
+              -o "output/bing-$i.html"
+            curl -L --max-time 45 \
+              "https://r.jina.ai/https://www.google.com/search?q=$encoded" \
+              -o "output/google-jina-$i.txt"
+            i=$((i+1))
+          done
+          wc -c output/* | tee output/sizes.txt
       - name: Upload result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: themeforest-candidate-debug-20
+          name: themeforest-search-fallback-test
           path: output/
           retention-days: 3
