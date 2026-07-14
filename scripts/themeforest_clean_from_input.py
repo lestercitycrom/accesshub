@@ -6,11 +6,17 @@ from dataclasses import asdict
 from pathlib import Path
 
 import httpx
-import themeforest_clean_v2 as core
 
-INPUT = Path(sys.argv[1])
-OUT = Path(sys.argv[2] if len(sys.argv) > 2 else 'output')
+ORIGINAL_ARGV = sys.argv[:]
+INPUT = Path(ORIGINAL_ARGV[1])
+OUT = Path(ORIGINAL_ARGV[2] if len(ORIGINAL_ARGV) > 2 else 'output')
 OUT.mkdir(parents=True, exist_ok=True)
+
+# The imported module interprets sys.argv[1] as its output directory.
+# Give it a safe directory during import, then restore our real arguments.
+sys.argv = [ORIGINAL_ARGV[0], str(OUT)]
+import themeforest_clean_v2 as core
+sys.argv = ORIGINAL_ARGV
 core.OUT = OUT
 
 async def main():
