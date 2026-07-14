@@ -1,0 +1,10 @@
+name: ThemeForest clean demo extractor (manual only)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  disabled-placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bulk workflow is disabled; use themeforest-retry-single.yml"
