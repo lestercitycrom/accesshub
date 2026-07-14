@@ -1,0 +1,31 @@
+name: ThemeForest clean demo extractor
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/themeforest-clean.yml'
+      - 'scripts/themeforest_clean.py'
+  workflow_dispatch:
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install httpx beautifulsoup4 lxml
+      - name: Extract clean demo pages
+        run: python scripts/themeforest_clean.py data/themeforest-previews-runtime.json output
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: themeforest-clean-demo-pages
+          path: output/
+          retention-days: 3
